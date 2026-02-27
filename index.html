@@ -1,0 +1,175 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шпаргалка Электрика</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="image/icon.png">
+    <link rel="shortcut icon" href="image/icon.png">
+    <link rel="apple-touch-icon" href="image/icon.png">
+    <meta name="theme-color" content="#0056b3">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <section id="homeScreen" class="screen active">
+            <h1>⚡ Шпаргалка Электрика</h1>
+            <div class="card menu-card">
+                <button type="button" class="menu-btn" data-screen="wireScreen">Расчет сечения провода и номинал автомата</button>
+                <button type="button" class="menu-btn" data-screen="objectScreen">Расчет мощности объекта</button>
+            </div>
+        </section>
+
+        <section id="wireScreen" class="screen">
+            <button type="button" class="back-btn" data-screen="homeScreen">Назад</button>
+
+            <div class="card result-card" id="resultBlock" style="display: none;">
+                <h2>Фактическая нагрузка:</h2>
+                <p>Расчетный ток: <strong id="resCurrent">-</strong></p>
+                <p>Расчетная мощность: <strong id="resPower">-</strong></p>
+                <hr>
+                <h2>Рекомендуемая защита:</h2>
+                <p>Номинал автомата: <strong id="resBreaker" class="highlight">-</strong></p>
+                <p>Сечение провода: <strong id="resCable" class="highlight">-</strong></p>
+                <hr>
+                <h2>Параметры провода:</h2>
+                <p>Допустимый ток: <strong id="resMaxCurrent">-</strong></p>
+                <p>Макс. мощность: <strong id="resMaxPower">-</strong></p>
+                <p>Запас по току: <strong id="resMargin" style="color: #28a745;">-</strong></p>
+
+                <div id="dropResultBlock" style="display: none;">
+                    <hr>
+                    <h2>Падение напряжения:</h2>
+                    <p>Потери в вольтах: <strong id="resDropVolts">-</strong></p>
+                    <p>Потери в %: <strong id="resDropPercent" style="font-size: 20px;">-</strong></p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="input-group">
+                    <label>Тип сети</label>
+                    <select id="netType">
+                        <option value="AC1">Переменный (1 фаза / 230 В)</option>
+                        <option value="AC3">Переменный (3 фазы / 400 В)</option>
+                        <option value="DC">Постоянный (DC)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Напряжение</label>
+                    <div id="voltageWrapper">
+                        <input type="text" id="voltageFixed" value="230 В" readonly style="background-color: #e9ecef;">
+                        <select id="voltageSelect" style="display: none;">
+                            <option value="12">12 В</option>
+                            <option value="24">24 В</option>
+                            <option value="36">36 В</option>
+                            <option value="48">48 В</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Материал кабеля</label>
+                    <select id="material">
+                        <option value="Cu">Медь (Cu)</option>
+                        <option value="Al">Алюминий (Al)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Прокладка кабеля</label>
+                    <select id="routing">
+                        <option value="air">Открыто (в воздухе)</option>
+                        <option value="pipe">В трубе/штробе</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Что известно? (Мощность / Ток)</label>
+                    <select id="inputType">
+                        <option value="power">Мощность (Вт)</option>
+                        <option value="current">Ток (А)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Значение</label>
+                    <input type="number" id="inputValue" placeholder="Например: 5500">
+                </div>
+
+                <div class="input-group" style="margin-top: 20px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="calcDropCheck" style="width: auto; margin-right: 10px; transform: scale(1.2);">
+                        Учесть длину провода?
+                    </label>
+                </div>
+
+                <div class="input-group" id="lengthGroup" style="display: none;">
+                    <label>Длина трассы в одну сторону (метры)</label>
+                    <input type="number" id="cableLength" placeholder="Например: 35">
+                </div>
+
+                <div class="input-group" id="cosPhiToggleGroup" style="margin-top: 20px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="manualCosPhiCheck" style="width: auto; margin-right: 10px; transform: scale(1.2);">
+                        Ручной ввод cos φ?
+                    </label>
+                </div>
+
+                <div class="input-group" id="cosPhiGroup" style="display: none;">
+                    <label>cos φ</label>
+                    <input type="number" id="cosPhiInput" value="0.85" min="0.01" max="1" step="0.01" placeholder="Например: 0.85">
+                </div>
+
+                <button id="calcBtn" type="button">Рассчитать</button>
+            </div>
+        </section>
+
+        <section id="objectScreen" class="screen">
+            <button type="button" class="back-btn" data-screen="homeScreen">Назад</button>
+
+            <div class="card">
+                <h2 style="margin-top: 0;">Расчет мощности объекта</h2>
+                <p class="hint">Нажмите на потребителя, чтобы добавить его в список внизу. Расчет выполняется только по выбранным.</p>
+                <div id="consumerRooms"></div>
+            </div>
+
+            <div class="card" id="selectedConsumersBlock" style="display: none;">
+                <h3 class="room-title">Выбранные потребители</h3>
+                <div id="selectedConsumers"></div>
+                <button id="calcObjectBtn" type="button">Посчитать мощность объекта</button>
+            </div>
+
+            <div class="card result-card" id="objectResult" style="display: none;">
+                <h2>Итоги по объекту:</h2>
+                <p>Пиковая мощность (все включено): <strong id="resPeakPower" class="highlight">-</strong></p>
+                <p>Расчетная мощность (коэф. одновременности 0.6): <strong id="resDiversityPower" class="highlight">-</strong></p>
+                <p>Оценочный ток при 230 В: <strong id="resObjectCurrent">-</strong></p>
+                <p>Рекомендуемый вводной автомат: <strong id="resObjectBreaker">-</strong></p>
+            </div>
+
+            <div class="card" id="objectDetailCard" style="display: none;">
+                <h2 style="margin-top: 0;">Расчет по линиям</h2>
+                <div class="line-table-wrap">
+                    <table class="line-table">
+                        <thead>
+                            <tr>
+                                <th>Наименование</th>
+                                <th>Нагрузка</th>
+                                <th>Длина, м</th>
+                                <th>Сечение</th>
+                                <th>Автомат</th>
+                                <th>Падение, %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="objectDetailRows"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

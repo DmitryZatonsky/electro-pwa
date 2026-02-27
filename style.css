@@ -1,0 +1,322 @@
+﻿:root {
+    --primary: #FF6B00;
+    --bg: #f4f4f9;
+    --card-bg: #ffffff;
+    --text: #333333;
+}
+
+* {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    width: 100%;
+    max-width: 440px;
+}
+
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+h1 {
+    text-align: center;
+    font-size: 24px;
+    color: var(--primary);
+    margin-bottom: 20px;
+}
+
+h2 {
+    font-size: 20px;
+}
+
+.card {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.menu-card {
+    display: grid;
+    gap: 12px;
+}
+
+.menu-btn {
+    color: var(--primary);
+    background-color: var(--bg);
+    border: 1px solid var(--primary);
+    text-align: left;
+    line-height: 1.35;
+}
+
+.menu-btn:active {
+        color: var(--card-bg);
+}
+
+.back-btn {
+    margin-bottom: 12px;
+    background: #ffffff;
+    color: var(--primary);
+    border: 1px solid #ffd7bd;
+}
+
+.back-btn:active {
+    color: var(--bg);
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #555;
+}
+
+input, select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+button:active {
+    background-color: #d85a00;
+}
+
+.result-card p {
+    margin: 10px 0;
+    font-size: 16px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.result-card p strong {
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.highlight {
+    color: var(--primary);
+    font-size: 16px;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 15px 0;
+}
+
+.hint {
+    margin-top: 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.room-block {
+    border: 1px solid #ececec;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.room-title {
+    margin: 0 0 10px 0;
+    font-size: 17px;
+}
+
+.room-toggle {
+    margin-top: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    padding: 0;
+    font-size: 17px;
+}
+
+.room-arrow {
+    font-size: 20px;
+    color: #666;
+}
+
+.room-content {
+    margin-top: 10px;
+}
+
+.consumer-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+    border-top: 1px dashed #eee;
+    padding: 8px 0;
+}
+
+.consumer-row.selectable {
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.consumer-row.selectable.selected {
+    background: #fff4ea;
+    border-color: #ffd1b0;
+}
+
+.consumer-row:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.consumer-meta {
+    font-size: 13px;
+    color: #666;
+}
+
+.consumer-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.priority-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.priority-dot.must {
+    background: #2fa84f;
+}
+
+.priority-dot.optional {
+    background: #f1c40f;
+}
+
+.selected-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    border-top: 1px dashed #eee;
+    padding: 8px 0;
+}
+
+.selected-row:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.selected-power-input {
+    width: 96px;
+    text-align: center;
+    padding: 8px;
+}
+
+.remove-selected-btn {
+    width: auto;
+    margin-top: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.line-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.line-table {
+    width: 100%;
+    min-width: 620px;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.line-table th,
+.line-table td {
+    padding: 10px 8px;
+    border-top: 1px dashed #eee;
+}
+
+.line-table thead th {
+    border-top: none;
+    border-bottom: 1px solid #eee;
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.line-table th:first-child,
+.line-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--card-bg);
+    z-index: 1;
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: auto;
+    line-height: 1.25;
+}
+
+.line-table thead th:first-child {
+    z-index: 2;
+}
+
+.line-table th:not(:first-child),
+.line-table td:not(:first-child) {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.line-length-input {
+    width: 70px;
+    padding: 6px 8px;
+    text-align: right;
+}
