@@ -43,43 +43,36 @@ const CABLE_DATA_AL = [
 // Потребители для расчета мощности объекта
 const OBJECT_CONSUMERS = [
     {
-        room: 'Кухня',
+        room: 'Отдельные линии',
         items: [
-            { name: 'Электроплита', power: 7000, priority: 'must' },
-            { name: 'Духовой шкаф', power: 3500, priority: 'must' },
-            { name: 'Измельчитель', power: 800, priority: 'optional' },
-            { name: 'Вытяжка', power: 250, priority: 'optional' },
-            { name: 'Чайник', power: 2200, priority: 'optional' },
-            { name: 'Микроволновка', power: 1200, priority: 'optional' },
-            { name: 'Посудомоечная машина', power: 1800, priority: 'must' },
-            { name: 'Холодильник', power: 500, priority: 'must' },
+            { name: 'Электроплита', power: 7000, priority: 'must', diffAuto: true },
+            { name: 'Духовой шкаф', power: 3500, priority: 'must', diffAuto: true },
+            { name: 'Посудомоечная машина', power: 1800, priority: 'must', diffAuto: true },
+            { name: 'Стиральная машина', power: 2200, priority: 'must', diffAuto: true },
+            { name: 'Водонагреватель', power: 2000, priority: 'must', diffAuto: true },
+            { name: 'Бойлер', power: 2000, priority: 'must', diffAuto: true },
+            { name: 'Теплый пол', power: 1500, priority: 'optional' },
+            { name: 'Холодильник', power: 500, priority: 'must', diffAuto: true },
+            { name: 'Розетки кухня', power: 2200, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Розетки санузел', power: 2200, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Электрокотел', power: 9000, priority: 'must' },
+            { name: 'Кондиционер', power: 2500, priority: 'must' },
+            { name: 'Розетки комната', power: 1500, priority: 'optional', fixedSection: 2.5, minBreaker: 16 },
+            { name: 'Освещение', power: 300, priority: 'must', fixedSection: 1.5, minBreaker: 10 },
         ],
     },
     {
-        room: 'Санузел',
+        room: 'Остальное',
         items: [
-            { name: 'Водонагреватель', power: 2000, priority: 'must' },
-            { name: 'Стиральная машина', power: 2200, priority: 'must' },
+            { name: 'Чайник', power: 2200, priority: 'optional' },
+            { name: 'Микроволновка', power: 1200, priority: 'optional' },
+            { name: 'Измельчитель', power: 800, priority: 'optional' },
+            { name: 'Вытяжка', power: 250, priority: 'optional' },
+            { name: 'Телевизор', power: 250, priority: 'optional' },
+            { name: 'Компьютер/рабочее место', power: 600, priority: 'must' },
             { name: 'Подсветка зеркала', power: 60, priority: 'optional' },
             { name: 'Вентиляция', power: 100, priority: 'optional' },
             { name: 'Полотенцесушитель', power: 600, priority: 'optional' },
-            { name: 'Теплый пол', power: 1500, priority: 'optional' },
-        ],
-    },
-    {
-        room: 'Жилые комнаты',
-        items: [
-            { name: 'Кондиционер', power: 2500, priority: 'must' },
-            { name: 'Компьютер/рабочее место', power: 600, priority: 'must' },
-            { name: 'Телевизор', power: 250, priority: 'optional' },
-            { name: 'Освещение комнаты', power: 300, priority: 'must' },
-            { name: 'Розеточная группа', power: 1500, priority: 'optional' },
-        ],
-    },
-    {
-        room: 'Прочее',
-        items: [
-            { name: 'Электрокотел', power: 9000, priority: 'must' },
             { name: 'Насос/скважина', power: 1500, priority: 'must' },
             { name: 'Гараж/мастерская', power: 3000, priority: 'optional' },
             { name: 'Уличное освещение', power: 500, priority: 'optional' },
@@ -133,6 +126,8 @@ const el = {
     objectResult: document.getElementById('objectResult'),
     objectDetailCard: document.getElementById('objectDetailCard'),
     objectDetailRows: document.getElementById('objectDetailRows'),
+    materialsCard: document.getElementById('materialsCard'),
+    materialsList: document.getElementById('materialsList'),
     resPeakPower: document.getElementById('resPeakPower'),
     resDiversityPower: document.getElementById('resDiversityPower'),
     resObjectCurrent: document.getElementById('resObjectCurrent'),
@@ -182,6 +177,52 @@ function pickCable({ material, routing, breaker }) {
 
     const selectedCableMaxCurrent = routing === 'air' ? cable.air : cable.pipe;
     return { selectedCableSection: cable.section, selectedCableMaxCurrent };
+}
+
+function pickCableByDropLimit({ material, routing, breaker, calcCurrent, cableLength, voltage, cosPhi, dropLimitPercent }) {
+    const dataSet = material === 'Cu' ? CABLE_DATA_CU : CABLE_DATA_AL;
+    const routingKey = routing === 'air' ? 'air' : 'pipe';
+
+    if (!breaker) {
+        return { selectedCableSection: null, drop: null };
+    }
+
+    const base = pickCable({ material, routing, breaker });
+    if (!base.selectedCableSection) {
+        return { selectedCableSection: null, drop: null };
+    }
+
+    const startIndex = dataSet.findIndex((c) => c.section === base.selectedCableSection);
+    if (startIndex === -1) {
+        return { selectedCableSection: base.selectedCableSection, drop: null };
+    }
+
+    let chosen = dataSet[startIndex];
+    let drop = null;
+
+    for (let i = startIndex; i < dataSet.length; i += 1) {
+        const candidate = dataSet[i];
+        if (breaker > candidate[routingKey] * 0.8) continue;
+
+        const candidateDrop = (Number.isFinite(cableLength) && cableLength > 0)
+            ? calcVoltageDrop({
+                netType: 'AC1',
+                material,
+                calcCurrent,
+                cableLength,
+                selectedCableSection: candidate.section,
+                voltage,
+                cosPhi,
+            })
+            : null;
+
+        chosen = candidate;
+        drop = candidateDrop;
+
+        if (!candidateDrop || candidateDrop.dropPercent <= dropLimitPercent) break;
+    }
+
+    return { selectedCableSection: chosen.section, drop };
 }
 
 function calcMaxAllowedPower(netType, voltage, maxCurrent, cosPhi) {
@@ -334,7 +375,7 @@ function renderObjectConsumers() {
         });
 
         const rows = sortedItems.map((item) => {
-            const priorityClass = item.priority === 'must' ? 'must' : 'optional';
+            const priorityClass = item.diffAuto ? 'must' : 'optional';
             const consumerKey = `${room.room}::${item.name}`;
             const selectedCount = selectedObjectConsumers.filter((entry) => entry.key === consumerKey).length;
             const isSelected = selectedCount > 0;
@@ -347,6 +388,9 @@ function renderObjectConsumers() {
                     data-name="${item.name}"
                     data-priority="${item.priority}"
                     data-default-power="${item.power}"
+                    data-fixed-section="${item.fixedSection || ''}"
+                    data-diff-auto="${item.diffAuto ? '1' : ''}"
+                    data-min-breaker="${item.minBreaker || ''}"
                 >
                     <div>
                         <div class="consumer-name-row">
@@ -384,8 +428,27 @@ function toggleRoom(roomName) {
     renderObjectConsumers();
 }
 
+function getNumberedSelectedEntries() {
+    const totalByKey = new Map();
+    selectedObjectConsumers.forEach((entry) => {
+        totalByKey.set(entry.key, (totalByKey.get(entry.key) || 0) + 1);
+    });
+
+    const orderByKey = new Map();
+    return selectedObjectConsumers.map((entry) => {
+        const index = (orderByKey.get(entry.key) || 0) + 1;
+        orderByKey.set(entry.key, index);
+        const hasDuplicates = (totalByKey.get(entry.key) || 0) > 1;
+
+        return {
+            ...entry,
+            displayName: hasDuplicates ? `${entry.name} ${index}` : entry.name,
+        };
+    });
+}
+
 function renderSelectedConsumers() {
-    const selectedItems = selectedObjectConsumers;
+    const selectedItems = getNumberedSelectedEntries();
     if (selectedItems.length === 0) {
         el.selectedConsumersBlock.style.display = 'none';
         el.selectedConsumers.innerHTML = '';
@@ -397,7 +460,7 @@ function renderSelectedConsumers() {
             <div class="selected-row" data-entry-id="${item.id}">
                 <div>
                     <div class="consumer-name-row">
-                        <strong>${item.name}</strong>
+                        <strong>${item.displayName}</strong>
                     </div>
                 </div>
                 <input
@@ -407,9 +470,9 @@ function renderSelectedConsumers() {
                     step="10"
                     value="${item.power}"
                     data-priority="${item.priority}"
-                    aria-label="Мощность в ваттах: ${item.name}"
+                    aria-label="Мощность в ваттах: ${item.displayName}"
                 >
-                <button type="button" class="remove-selected-btn" data-remove-id="${item.id}" aria-label="Удалить ${item.name}">×</button>
+                <button type="button" class="remove-selected-btn" data-remove-id="${item.id}" aria-label="Удалить ${item.displayName}">×</button>
             </div>
         `;
     }).join('');
@@ -422,12 +485,21 @@ function buildObjectLineDetail(entry) {
     const power = parseFloat(entry.power);
     const cableLength = parseFloat(entry.cableLength);
     const calcCurrent = power / (OBJECT_DETAIL_VOLTAGE * DEFAULT_COS_PHI);
-    const breakerValue = pickBreaker(calcCurrent);
-    const { selectedCableSection } = pickCable({
+    const pickedBreaker = pickBreaker(calcCurrent);
+    const breakerValue = entry.minBreaker
+        ? Math.max(entry.minBreaker, pickedBreaker || entry.minBreaker)
+        : pickedBreaker;
+    const picked = pickCableByDropLimit({
         material: OBJECT_DETAIL_MATERIAL,
         routing: OBJECT_DETAIL_ROUTING,
         breaker: breakerValue,
+        calcCurrent,
+        cableLength,
+        voltage: OBJECT_DETAIL_VOLTAGE,
+        cosPhi: DEFAULT_COS_PHI,
+        dropLimitPercent: 5,
     });
+    const selectedCableSection = entry.fixedSection || picked.selectedCableSection;
     const drop = (Number.isFinite(cableLength) && cableLength > 0 && selectedCableSection)
         ? calcVoltageDrop({
             netType: 'AC1',
@@ -442,13 +514,17 @@ function buildObjectLineDetail(entry) {
 
     return {
         id: entry.id,
-        name: entry.name,
+        name: entry.displayName || entry.name,
         powerKw: `${(power / 1000).toFixed(2)} кВт`,
         cableLength: Number.isFinite(cableLength) && cableLength > 0 ? cableLength : '',
         cable: selectedCableSection ? `${selectedCableSection} мм²` : 'Вне диапазона',
-        breaker: breakerValue ? `${breakerValue} А` : 'Вне диапазона',
+        breaker: breakerValue ? `${entry.diffAuto ? 'Диф. автомат' : 'Автомат'} ${breakerValue} А` : 'Вне диапазона',
         dropPercent: drop ? `${drop.dropPercent.toFixed(2)} %` : '-',
         dropColor: drop ? getDropPercentColor(drop.dropPercent) : '#666',
+        breakerAmp: breakerValue || null,
+        protectionType: entry.diffAuto ? 'diff' : 'breaker',
+        cableSection: selectedCableSection || null,
+        cableLengthMeters: Number.isFinite(cableLength) && cableLength > 0 ? cableLength : 0,
     };
 }
 
@@ -484,9 +560,56 @@ function renderObjectDetailRows(rows) {
     el.objectDetailCard.style.display = 'block';
 }
 
+function renderMaterialsSummary(rows) {
+    if (!rows.length) {
+        el.materialsList.innerHTML = '';
+        el.materialsCard.style.display = 'none';
+        return;
+    }
+
+    const protectionMap = new Map();
+    const cableMap = new Map();
+
+    rows.forEach((row) => {
+        if (row.breakerAmp) {
+            const key = `${row.protectionType || 'breaker'}:${row.breakerAmp}`;
+            protectionMap.set(key, (protectionMap.get(key) || 0) + 1);
+        }
+        if (row.cableSection && row.cableLengthMeters > 0) {
+            cableMap.set(row.cableSection, (cableMap.get(row.cableSection) || 0) + row.cableLengthMeters);
+        }
+    });
+
+    const lines = [];
+
+    Array.from(protectionMap.keys()).sort((a, b) => {
+        const [typeA, ampA] = a.split(':');
+        const [typeB, ampB] = b.split(':');
+        if (typeA !== typeB) return typeA.localeCompare(typeB);
+        return Number(ampA) - Number(ampB);
+    }).forEach((key) => {
+        const [type, amp] = key.split(':');
+        const label = type === 'diff' ? 'Диф. автомат' : 'Автомат';
+        lines.push(`${label} ${amp} А - ${protectionMap.get(key)} шт`);
+    });
+
+    Array.from(cableMap.keys()).sort((a, b) => a - b).forEach((section) => {
+        const totalWithReserve = cableMap.get(section) * 1.15;
+        lines.push(`Кабель ВВГнг-LS 3x${section} мм² - ${totalWithReserve.toFixed(1)} м (+15%)`);
+    });
+
+    if (!lines.length) {
+        lines.push('Недостаточно данных для подсчета материалов');
+    }
+
+    el.materialsList.innerHTML = lines.map((line) => `<li>${line}</li>`).join('');
+    el.materialsCard.style.display = 'block';
+}
+
 function invalidateObjectCalculation() {
     el.objectResult.style.display = 'none';
     el.objectDetailCard.style.display = 'none';
+    el.materialsCard.style.display = 'none';
 }
 
 function toggleObjectConsumerSelection(card) {
@@ -501,6 +624,9 @@ function toggleObjectConsumerSelection(card) {
         priority: card.dataset.priority,
         power: parseFloat(card.dataset.defaultPower),
         cableLength: 25,
+        fixedSection: card.dataset.fixedSection ? parseFloat(card.dataset.fixedSection) : null,
+        diffAuto: card.dataset.diffAuto === '1',
+        minBreaker: card.dataset.minBreaker ? parseInt(card.dataset.minBreaker, 10) : null,
     });
 
     renderObjectConsumers();
@@ -542,7 +668,9 @@ function calculateObjectPower() {
     el.resObjectCurrent.innerText = `${objectCurrent.toFixed(2)} А`;
     el.resObjectBreaker.innerText = breaker ? `${breaker} А` : 'Вне диапазона';
     el.objectResult.style.display = 'block';
-    renderObjectDetailRows(selectedObjectConsumers.map(buildObjectLineDetail));
+    const detailRows = getNumberedSelectedEntries().map(buildObjectLineDetail);
+    renderObjectDetailRows(detailRows);
+    renderMaterialsSummary(detailRows);
     el.objectResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -608,7 +736,9 @@ el.objectDetailRows.addEventListener('focusout', (e) => {
     selected.cableLength = Number.isFinite(length) && length > 0 ? length : '';
 
     if (el.objectDetailCard.style.display === 'block') {
-        renderObjectDetailRows(selectedObjectConsumers.map(buildObjectLineDetail));
+        const detailRows = getNumberedSelectedEntries().map(buildObjectLineDetail);
+        renderObjectDetailRows(detailRows);
+        renderMaterialsSummary(detailRows);
     }
 });
 el.calcBtn.addEventListener('click', calculate);

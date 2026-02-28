@@ -320,3 +320,13 @@ hr {
     padding: 6px 8px;
     text-align: right;
 }
+
+.materials-list {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.materials-list li {
+    margin: 8px 0;
+    line-height: 1.35;
+}
