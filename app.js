@@ -137,12 +137,31 @@ const el = {
 const selectedObjectConsumers = [];
 let selectedEntryIdCounter = 0;
 const expandedRooms = new Set();
+let currentScreenId = (document.querySelector('.screen.active') || {}).id || 'homeScreen';
+const knownScreenIds = new Set(Array.from(el.screens).map((screen) => screen.id));
 
 // Навигация между экранами
-function showScreen(screenId) {
+function showScreen(screenId, options = {}) {
+    const { record = true, fromPopState = false } = options;
+    if (!screenId || screenId === currentScreenId) return;
+
     el.screens.forEach((screen) => {
         screen.classList.toggle('active', screen.id === screenId);
     });
+
+    currentScreenId = screenId;
+
+    if (record && !fromPopState) {
+        window.history.pushState({ screenId }, '');
+    }
+}
+
+function goScreenBack() {
+    window.history.back();
+}
+
+function goScreenForward() {
+    window.history.forward();
 }
 
 // Расчетные функции для кабеля и автомата
@@ -680,6 +699,76 @@ document.querySelectorAll('[data-screen]').forEach((btn) => {
         showScreen(btn.dataset.screen);
     });
 });
+
+// Поддержка системной кнопки "Назад" (Android)
+window.history.replaceState({ screenId: currentScreenId }, '');
+window.addEventListener('popstate', (e) => {
+    const targetScreen = e.state && e.state.screenId;
+    if (!targetScreen || !knownScreenIds.has(targetScreen)) return;
+    showScreen(targetScreen, { record: false, fromPopState: true });
+});
+
+// Свайп-навигация экранов: слева направо - назад, справа налево - вперед
+let swipeStartX = 0;
+let swipeStartY = 0;
+let swipeStartTime = 0;
+let swipeEdge = null;
+
+function resetSwipeState() {
+    swipeStartX = 0;
+    swipeStartY = 0;
+    swipeStartTime = 0;
+    swipeEdge = null;
+}
+
+function isInteractiveTarget(target) {
+    return Boolean(target.closest('input, textarea, select, button, [contenteditable="true"]'));
+}
+
+document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    if (isInteractiveTarget(e.target)) return;
+
+    const touch = e.touches[0];
+    const viewportWidth = window.innerWidth;
+    const edgeSize = Math.min(40, viewportWidth * 0.08);
+
+    if (touch.clientX <= edgeSize) {
+        swipeEdge = 'left';
+    } else if (touch.clientX >= viewportWidth - edgeSize) {
+        swipeEdge = 'right';
+    } else {
+        resetSwipeState();
+        return;
+    }
+
+    swipeStartX = touch.clientX;
+    swipeStartY = touch.clientY;
+    swipeStartTime = Date.now();
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    if (!swipeEdge || e.changedTouches.length !== 1) {
+        resetSwipeState();
+        return;
+    }
+
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - swipeStartX;
+    const deltaY = touch.clientY - swipeStartY;
+    const duration = Date.now() - swipeStartTime;
+    const isHorizontalSwipe = Math.abs(deltaY) < 70 && duration < 700;
+
+    if (isHorizontalSwipe && swipeEdge === 'left' && deltaX > 70) {
+        goScreenBack();
+    } else if (isHorizontalSwipe && swipeEdge === 'right' && deltaX < -70) {
+        goScreenForward();
+    }
+
+    resetSwipeState();
+}, { passive: true });
+
+document.addEventListener('touchcancel', resetSwipeState, { passive: true });
 
 // Обработчики формы расчета кабеля
 el.netType.addEventListener('change', (e) => {

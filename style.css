@@ -99,6 +99,12 @@ input, select {
     font-size: 16px;
 }
 
+input[type="checkbox"] {
+    accent-color: var(--primary);
+    transform: scale(1.5);
+    transform-origin: center;
+}
+
 button {
     width: 100%;
     padding: 14px;
@@ -204,7 +210,6 @@ hr {
 
 .consumer-row:first-of-type {
     border-top: none;
-    padding-top: 0;
 }
 
 .consumer-meta {
