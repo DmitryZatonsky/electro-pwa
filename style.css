@@ -39,6 +39,13 @@ h1 {
     margin-bottom: 20px;
 }
 
+.app-version {
+    margin: -14px 0 14px;
+    text-align: center;
+    color: #777;
+    font-size: 12px;
+}
+
 h2 {
     font-size: 20px;
 }

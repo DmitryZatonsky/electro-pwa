@@ -18,7 +18,7 @@ self.addEventListener('install', (event) => {
 
 // Активация: удаляем старые версии кэша
 self.addEventListener('activate', (event) => {
-    event.waitUntil(
+    event.waitUntil(git pushgit push
         caches.keys().then((keys) => Promise.all(
             keys
                 .filter((key) => key !== CACHE_NAME)

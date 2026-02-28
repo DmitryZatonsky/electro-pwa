@@ -1,11 +1,38 @@
-﻿// Регистрация Service Worker для PWA
-if ('serviceWorker' in navigator) {
+﻿// Регистрация Service Worker для PWA + авто-версия сборки
+async function getSwVersionToken() {
+    try {
+        const response = await fetch('./sw.js', { method: 'HEAD', cache: 'no-store' });
+        const etag = response.headers.get('etag');
+        if (etag) return etag.replace(/[^a-zA-Z0-9._-]/g, '');
+
+        const lastModified = response.headers.get('last-modified');
+        if (lastModified) return new Date(lastModified).getTime().toString(36);
+    } catch (err) {
+        console.warn('Не удалось получить версию sw.js', err);
+    }
+    return '';
+}
+
+function setAppVersionLabel(versionToken) {
+    const versionEl = document.getElementById('appVersion');
+    if (!versionEl) return;
+    versionEl.textContent = `Версия: ${versionToken || 'dev'}`;
+}
+
+async function registerServiceWorkerWithAutoVersion() {
+    if (!('serviceWorker' in navigator)) return;
+
+    const versionToken = await getSwVersionToken();
+    setAppVersionLabel(versionToken);
+
+    const swUrl = versionToken ? `./sw.js?v=${encodeURIComponent(versionToken)}` : './sw.js';
     navigator.serviceWorker
-        .register('./sw.js')
+        .register(swUrl)
         .then((reg) => reg.update())
         .catch(err => console.error(err));
 }
 
+registerServiceWorkerWithAutoVersion();
 // Данные ПУЭ: Медь
 const CABLE_DATA_CU = [
     { section: 1.5, air: 23, pipe: 15 },
