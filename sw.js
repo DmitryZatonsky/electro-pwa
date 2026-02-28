@@ -1,23 +1,64 @@
-const CACHE_NAME = 'electro-pwa-v1';
+const CACHE_NAME = 'electro-pwa-v2';
 const ASSETS = [
-  './',
-  './index.html',
-  './style.css',
-  './app.js',
-  './manifest.json',
-  './image/icon.png',
+    './',
+    './index.html',
+    './style.css',
+    './app.js',
+    './manifest.json',
+    './image/icon.png',
 ];
 
-// Установка и кэширование файлов
+// Установка и предварительное кэширование
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    );
+    self.skipWaiting();
 });
 
-// Выдача файлов из кэша при отсутствии интернета
+// Активация: удаляем старые версии кэша
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) => Promise.all(
+            keys
+                .filter((key) => key !== CACHE_NAME)
+                .map((key) => caches.delete(key))
+        ))
+    );
+    self.clients.claim();
+});
+
+// Fetch-стратегия:
+// - для HTML навигации: network-first (чтобы быстрее видеть новую версию)
+// - для остальных GET: cache-first с дозаписью в кэш
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => response || fetch(event.request))
-  );
+    if (event.request.method !== 'GET') return;
+
+    const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) return;
+
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+                    return response;
+                })
+                .catch(() => caches.match('./index.html'))
+        );
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then((cached) => {
+            if (cached) return cached;
+
+            return fetch(event.request).then((response) => {
+                const copy = response.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+                return response;
+            });
+        })
+    );
 });

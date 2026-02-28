@@ -1,6 +1,9 @@
 ﻿// Регистрация Service Worker для PWA
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
+    navigator.serviceWorker
+        .register('./sw.js')
+        .then((reg) => reg.update())
+        .catch(err => console.error(err));
 }
 
 // Данные ПУЭ: Медь
@@ -838,3 +841,4 @@ renderObjectConsumers();
 renderSelectedConsumers();
 updateVoltageUI(el.netType.value);
 updateCosPhiUI(el.netType.value);
+
