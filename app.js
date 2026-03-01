@@ -88,17 +88,17 @@ const OBJECT_CONSUMERS = [
         items: [
             { name: 'Электроплита', power: 7000, priority: 'must', diffAuto: true },
             { name: 'Духовой шкаф', power: 3500, priority: 'must', diffAuto: true },
-            { name: 'Посудомоечная машина', power: 1800, priority: 'must', diffAuto: true },
-            { name: 'Стиральная машина', power: 2200, priority: 'must', diffAuto: true },
+            { name: 'Посудомоечная машина', power: 1800, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Стиральная машина', power: 2200, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
             { name: 'Водонагреватель', power: 2000, priority: 'must', diffAuto: true },
-            { name: 'Бойлер', power: 2000, priority: 'must', diffAuto: true },
-            { name: 'Теплый пол', power: 1500, priority: 'optional' },
-            { name: 'Холодильник', power: 500, priority: 'must', diffAuto: true },
-            { name: 'Розетки кухня', power: 2200, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
-            { name: 'Розетки санузел', power: 2200, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Бойлер', power: 2000, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Теплый пол', power: 1500, priority: 'optional', fixedSection: 2.5, minBreaker: 16 },
+            { name: 'Холодильник', power: 500, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Розетки кухня', power: 0, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
+            { name: 'Розетки санузел', power: 0, priority: 'must', fixedSection: 2.5, diffAuto: true, minBreaker: 16 },
             { name: 'Электрокотел', power: 9000, priority: 'must' },
-            { name: 'Кондиционер', power: 2500, priority: 'must' },
-            { name: 'Розетки комната', power: 1500, priority: 'optional', fixedSection: 2.5, minBreaker: 16 },
+            { name: 'Кондиционер', power: 2500, priority: 'must', fixedSection: 2.5, minBreaker: 16 },
+            { name: 'Розетки комната', power: 0, priority: 'optional', fixedSection: 2.5, minBreaker: 16 },
             { name: 'Освещение', power: 300, priority: 'must', fixedSection: 1.5, minBreaker: 10 },
         ],
     },
@@ -130,6 +130,9 @@ const OBJECT_DIVERSITY_FACTOR = 0.6;
 const OBJECT_DETAIL_VOLTAGE = 230;
 const OBJECT_DETAIL_MATERIAL = 'Cu';
 const OBJECT_DETAIL_ROUTING = 'pipe';
+const SHIELD_MODULE_STEP = 12;
+const MAX_RELAY_DIRECT_AMP = 63;
+const DEFAULT_PROTECTION_CURVE = 'C';
 const CONSUMABLES = {
     clipStepMeters: 0.5,
     wagoPerLine: 3,
@@ -180,6 +183,30 @@ const el = {
     resDiversityPower: document.getElementById('resDiversityPower'),
     resObjectCurrent: document.getElementById('resObjectCurrent'),
     resObjectBreaker: document.getElementById('resObjectBreaker'),
+    shieldInputBasis: document.getElementById('shieldInputBasis'),
+    shieldSectionGroup: document.getElementById('shieldSectionGroup'),
+    shieldPowerGroup: document.getElementById('shieldPowerGroup'),
+    shieldCableSection: document.getElementById('shieldCableSection'),
+    shieldPowerKw: document.getElementById('shieldPowerKw'),
+    shieldPhases: document.getElementById('shieldPhases'),
+    shieldMaterial: document.getElementById('shieldMaterial'),
+    shieldRouting: document.getElementById('shieldRouting'),
+    calcShieldBtn: document.getElementById('calcShieldBtn'),
+    shieldResult: document.getElementById('shieldResult'),
+    resShieldBreaker: document.getElementById('resShieldBreaker'),
+    resShieldRelay: document.getElementById('resShieldRelay'),
+    resShieldRcd: document.getElementById('resShieldRcd'),
+    resShieldTotalModules: document.getElementById('resShieldTotalModules'),
+    resShieldBoardSize: document.getElementById('resShieldBoardSize'),
+    shieldEquipmentCard: document.getElementById('shieldEquipmentCard'),
+    shieldEquipmentRows: document.getElementById('shieldEquipmentRows'),
+    shieldManualModuleName: document.getElementById('shieldManualModuleName'),
+    shieldManualModuleCount: document.getElementById('shieldManualModuleCount'),
+    shieldAddManualModuleBtn: document.getElementById('shieldAddManualModuleBtn'),
+    recalcShieldBtn: document.getElementById('recalcShieldBtn'),
+    shieldExtraModulesList: document.getElementById('shieldExtraModulesList'),
+    shieldMainRooms: document.getElementById('shieldMainRooms'),
+    shieldLineCandidates: document.getElementById('shieldLineCandidates'),
 };
 
 const selectedObjectConsumers = [];
@@ -188,6 +215,10 @@ const expandedRooms = new Set();
 let currentScreenId = (document.querySelector('.screen.active') || {}).id || 'homeScreen';
 const knownScreenIds = new Set(Array.from(el.screens).map((screen) => screen.id));
 let lastDetailRows = [];
+const selectedShieldExtras = [];
+let shieldExtraIdCounter = 0;
+const expandedShieldRooms = new Set();
+const expandedShieldMainRooms = new Set();
 
 // Навигация между экранами
 function showScreen(screenId, options = {}) {
@@ -432,6 +463,391 @@ function calculate() {
     });
 }
 
+function updateShieldInputUI() {
+    const bySection = el.shieldInputBasis.value === 'section';
+    el.shieldSectionGroup.style.display = bySection ? 'block' : 'none';
+    el.shieldPowerGroup.style.display = bySection ? 'none' : 'block';
+}
+
+function pickInputBreakerBySection({ material, routing, section }) {
+    const dataSet = material === 'Cu' ? CABLE_DATA_CU : CABLE_DATA_AL;
+    const cable = dataSet.find((entry) => entry.section >= section);
+    if (!cable) return null;
+    const maxCurrent = routing === 'air' ? cable.air : cable.pipe;
+    const allowedBreaker = maxCurrent * 0.8;
+    const variants = BREAKERS.filter((breaker) => breaker <= allowedBreaker);
+    return variants.length ? variants[variants.length - 1] : null;
+}
+
+function calcInputCurrentFromPower(powerKw, phases) {
+    const powerW = powerKw * 1000;
+    if (phases === 3) return powerW / (SQRT_3 * 400 * DEFAULT_COS_PHI);
+    return powerW / (230 * DEFAULT_COS_PHI);
+}
+
+function getRelayRecommendation(breaker, phases) {
+    const poles = phases === 3 ? '4P' : '2P';
+    if (breaker > MAX_RELAY_DIRECT_AMP) {
+        return `${poles}, ${MAX_RELAY_DIRECT_AMP} А + контактор (катушка через реле)`;
+    }
+    return `${poles}, не менее ${breaker} А`;
+}
+
+function getRcdRecommendation(breaker, phases) {
+    const poles = phases === 3 ? '4P' : '2P';
+    const rcdNominal = BREAKERS.find((value) => value >= breaker) || breaker;
+    return `${poles}, ${rcdNominal} А, 100 мА, тип S`;
+}
+
+function getBaseShieldModules(phases) {
+    if (phases === 3) return 12;
+    return 6;
+}
+
+function getLineModuleCount(row) {
+    if (!row) return 0;
+    return row.protectionType === 'diff' ? 2 : 1;
+}
+
+function getShieldMainConsumerGroups() {
+    return OBJECT_CONSUMERS
+        .map((room) => ({
+            room: room.room,
+            items: [...room.items].sort((a, b) => {
+                const weightA = a.priority === 'must' ? 0 : 1;
+                const weightB = b.priority === 'must' ? 0 : 1;
+                return weightA - weightB;
+            }),
+        }))
+        .filter((room) => room.items.length);
+}
+
+function pickShieldMainProtection(item) {
+    const power = parseFloat(item.power);
+    const calcCurrent = Number.isFinite(power) && power > 0
+        ? power / (OBJECT_DETAIL_VOLTAGE * DEFAULT_COS_PHI)
+        : null;
+    const pickedBreaker = Number.isFinite(calcCurrent) ? pickBreaker(calcCurrent) : null;
+    const amp = item.minBreaker
+        ? Math.max(item.minBreaker, pickedBreaker || item.minBreaker)
+        : pickedBreaker;
+
+    return {
+        type: item.diffAuto ? 'diff' : 'breaker',
+        amp: Number.isFinite(amp) ? amp : null,
+        curve: DEFAULT_PROTECTION_CURVE,
+    };
+}
+
+function renderShieldMainLines() {
+    const groups = getShieldMainConsumerGroups();
+    if (!groups.length) {
+        el.shieldMainRooms.innerHTML = '<p class="hint">Основные линии не найдены.</p>';
+        return;
+    }
+
+    const selectedByKey = new Map();
+    selectedShieldExtras.forEach((item) => {
+        if (!item.sourceKey || !item.sourceKey.startsWith('main::')) return;
+        selectedByKey.set(item.sourceKey, (selectedByKey.get(item.sourceKey) || 0) + 1);
+    });
+
+    const html = groups.map((group) => {
+        const isExpanded = expandedShieldMainRooms.has(group.room);
+        const rowsHtml = group.items.map((item) => {
+            const key = `main::${group.room}::${item.name}`;
+            const isSelected = (selectedByKey.get(key) || 0) > 0;
+            const moduleCount = item.diffAuto ? 2 : 1;
+            const priorityClass = item.diffAuto ? 'must' : 'optional';
+            const protection = pickShieldMainProtection(item);
+
+            return `
+                <div
+                    class="consumer-row selectable ${isSelected ? 'selected' : ''}"
+                    data-shield-main-key="${key}"
+                    data-shield-main-room="${group.room}"
+                    data-shield-main-name="${item.name}"
+                    data-shield-main-modules="${moduleCount}"
+                    data-shield-main-protection-type="${protection.type}"
+                    data-shield-main-protection-amp="${protection.amp || ''}"
+                    data-shield-main-protection-curve="${protection.curve}"
+                >
+                    <div>
+                        <div class="consumer-name-row">
+                            <span class="priority-dot ${priorityClass}" aria-hidden="true"></span>
+                            <strong>${item.name}</strong>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="room-block">
+                <button type="button" class="room-toggle" data-shield-main-room-toggle="${group.room}">
+                    <span>${group.room}</span>
+                    <span class="room-arrow">${isExpanded ? '▾' : '▸'}</span>
+                </button>
+                <div class="room-content" style="display: ${isExpanded ? 'block' : 'none'};">
+                    ${rowsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    el.shieldMainRooms.innerHTML = html;
+}
+
+function toggleShieldMainRoom(roomName) {
+    if (!roomName) return;
+    if (expandedShieldMainRooms.has(roomName)) {
+        expandedShieldMainRooms.delete(roomName);
+    } else {
+        expandedShieldMainRooms.add(roomName);
+    }
+    renderShieldMainLines();
+}
+
+function renderShieldExtras() {
+    if (!selectedShieldExtras.length) {
+        el.shieldExtraModulesList.innerHTML = '<p class="hint">Дополнительные модули не добавлены.</p>';
+        return;
+    }
+
+    const totalByBaseName = new Map();
+    selectedShieldExtras.forEach((item) => {
+        const baseName = item.baseName || item.name;
+        totalByBaseName.set(baseName, (totalByBaseName.get(baseName) || 0) + 1);
+    });
+
+    const orderByBaseName = new Map();
+    const numberedItems = selectedShieldExtras.map((item) => {
+        const baseName = item.baseName || item.name;
+        const currentOrder = (orderByBaseName.get(baseName) || 0) + 1;
+        orderByBaseName.set(baseName, currentOrder);
+        const shouldNumber = (totalByBaseName.get(baseName) || 0) > 1;
+
+        return {
+            ...item,
+            displayName: shouldNumber ? `${baseName} ${currentOrder}` : baseName,
+        };
+    });
+
+    const html = numberedItems.map((item) => (
+        `
+            <div class="consumer-row">
+                <div>
+                    <div class="consumer-name-row">
+                        <strong>${item.displayName}</strong>
+                    </div>
+                </div>
+                <button type="button" class="remove-selected-btn" data-remove-shield-extra-id="${item.id}" aria-label="Удалить ${item.displayName}">×</button>
+            </div>
+        `
+    )).join('');
+    el.shieldExtraModulesList.innerHTML = html;
+}
+
+function renderShieldLineCandidates() {
+    if (!el.shieldLineCandidates) return;
+
+    const sourceRows = lastDetailRows.length
+        ? lastDetailRows
+        : getNumberedSelectedEntries().map(buildObjectLineDetail);
+    const availableRows = sourceRows.filter((row) => row.breakerAmp);
+    if (!availableRows.length) {
+        el.shieldLineCandidates.innerHTML = '<p class="hint">Добавьте потребителей в разделе "Расчет мощности объекта", чтобы получить список линий.</p>';
+        return;
+    }
+
+    const grouped = new Map();
+    availableRows.forEach((row) => {
+        const room = row.room || 'Без группы';
+        if (!grouped.has(room)) grouped.set(room, []);
+        grouped.get(room).push(row);
+    });
+
+    Array.from(expandedShieldRooms).forEach((room) => {
+        if (!grouped.has(room)) expandedShieldRooms.delete(room);
+    });
+
+    const html = Array.from(grouped.keys()).map((room) => {
+        const isExpanded = expandedShieldRooms.has(room);
+        const rowsHtml = grouped.get(room).map((row) => {
+            const moduleCount = getLineModuleCount(row);
+            const protectionCurve = DEFAULT_PROTECTION_CURVE;
+            return `
+                <button
+                    type="button"
+                    class="menu-btn shield-line-btn"
+                    data-add-line-module-id="${row.id}"
+                    data-add-line-module-name="${row.name}"
+                    data-add-line-module-count="${moduleCount}"
+                    data-add-line-protection-type="${row.protectionType || 'breaker'}"
+                    data-add-line-protection-amp="${row.breakerAmp || ''}"
+                    data-add-line-protection-curve="${protectionCurve}"
+                >
+                    ${row.name}: ${row.breaker} (${moduleCount} мод.)
+                </button>
+            `;
+        }).join('');
+
+        return `
+            <div class="room-block">
+                <button type="button" class="room-toggle" data-shield-room-toggle="${room}">
+                    <span>${room}</span>
+                    <span class="room-arrow">${isExpanded ? '▾' : '▸'}</span>
+                </button>
+                <div class="room-content" style="display: ${isExpanded ? 'block' : 'none'};">
+                    ${rowsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    el.shieldLineCandidates.innerHTML = html;
+}
+
+function toggleShieldRoom(roomName) {
+    if (!roomName) return;
+    if (expandedShieldRooms.has(roomName)) {
+        expandedShieldRooms.delete(roomName);
+    } else {
+        expandedShieldRooms.add(roomName);
+    }
+    renderShieldLineCandidates();
+}
+
+function addShieldExtra(baseName, modules, sourceKey = '', protection = null) {
+    if (!baseName || !Number.isFinite(modules) || modules <= 0) return;
+    selectedShieldExtras.push({
+        id: ++shieldExtraIdCounter,
+        name: baseName,
+        baseName,
+        modules,
+        sourceKey,
+        protectionType: protection && protection.type ? protection.type : null,
+        protectionAmp: protection && Number.isFinite(protection.amp) ? protection.amp : null,
+        protectionCurve: protection && protection.curve ? protection.curve : DEFAULT_PROTECTION_CURVE,
+    });
+    renderShieldExtras();
+    renderShieldMainLines();
+    if (el.shieldResult.style.display === 'block') {
+        calculateShield({ scrollToResult: false });
+    }
+}
+
+function renderShieldEquipmentList({ poles, breaker, relay, rcd, boardSize }) {
+    if (!el.shieldEquipmentRows || !el.shieldEquipmentCard) return false;
+
+    const rows = [
+        { name: `Вводной автомат ${poles} ${DEFAULT_PROTECTION_CURVE}${breaker} А`, spec: '1 шт' },
+        { name: `Реле напряжения ${relay}`, spec: '1 шт' },
+        { name: `УЗО вводное ${rcd}`, spec: '1 шт' },
+        { name: `Щит ${boardSize} мод.`, spec: '1 шт' },
+    ];
+
+    if (selectedShieldExtras.length) {
+        const protectionMap = new Map();
+        const fallbackByName = new Map();
+
+        selectedShieldExtras.forEach((item) => {
+            if (item.protectionType && Number.isFinite(item.protectionAmp)) {
+                const curve = item.protectionCurve || DEFAULT_PROTECTION_CURVE;
+                const key = `${item.protectionType}:${curve}:${item.protectionAmp}`;
+                protectionMap.set(key, (protectionMap.get(key) || 0) + 1);
+                return;
+            }
+
+            const baseName = item.baseName || item.name;
+            fallbackByName.set(baseName, (fallbackByName.get(baseName) || 0) + 1);
+        });
+
+        Array.from(protectionMap.keys()).sort((a, b) => {
+            const [typeA, curveA, ampA] = a.split(':');
+            const [typeB, curveB, ampB] = b.split(':');
+            if (typeA !== typeB) return typeA.localeCompare(typeB);
+            if (curveA !== curveB) return curveA.localeCompare(curveB);
+            return Number(ampA) - Number(ampB);
+        }).forEach((key) => {
+            const [type, curve, amp] = key.split(':');
+            const label = type === 'diff' ? 'Диф. автомат' : 'Автомат';
+            rows.push({
+                name: `${label} ${curve}${amp} А`,
+                spec: `${protectionMap.get(key)} шт`,
+            });
+        });
+
+        Array.from(fallbackByName.keys()).sort((a, b) => a.localeCompare(b, 'ru')).forEach((name) => {
+            rows.push({ name, spec: `${fallbackByName.get(name)} шт` });
+        });
+    }
+
+    el.shieldEquipmentRows.innerHTML = rows.map((row) => (
+        `<tr><td>${row.name}</td><td>${row.spec}</td></tr>`
+    )).join('');
+    el.shieldEquipmentCard.style.display = 'block';
+    return true;
+}
+
+function calculateShield(options = {}) {
+    const { scrollToResult = true } = options;
+    const basis = el.shieldInputBasis.value;
+    const phases = parseInt(el.shieldPhases.value, 10);
+    const material = el.shieldMaterial.value;
+    const routing = el.shieldRouting.value;
+
+    let breaker = null;
+    if (basis === 'section') {
+        const section = parseFloat(el.shieldCableSection.value);
+        if (!Number.isFinite(section) || section <= 0) {
+            alert('Введите корректное сечение вводного кабеля.');
+            return;
+        }
+        breaker = pickInputBreakerBySection({ material, routing, section });
+        if (!breaker) {
+            alert('Для указанного сечения не удалось подобрать вводной автомат. Проверьте сечение и материал.');
+            return;
+        }
+    } else {
+        const powerKw = parseFloat(el.shieldPowerKw.value);
+        if (!Number.isFinite(powerKw) || powerKw <= 0) {
+            alert('Введите корректную расчетную мощность.');
+            return;
+        }
+        const calcCurrent = calcInputCurrentFromPower(powerKw, phases);
+        breaker = pickBreaker(calcCurrent);
+        if (!breaker) {
+            alert('Расчетный ток вне диапазона поддерживаемых автоматов.');
+            return;
+        }
+    }
+
+    const relay = getRelayRecommendation(breaker, phases);
+    const rcd = getRcdRecommendation(breaker, phases);
+    const baseModules = getBaseShieldModules(phases);
+    const extraModules = selectedShieldExtras.reduce((sum, item) => sum + item.modules, 0);
+    const totalModules = baseModules + extraModules;
+    const boardSize = Math.ceil(totalModules / SHIELD_MODULE_STEP) * SHIELD_MODULE_STEP;
+    const poles = phases === 3 ? '4P' : '2P';
+
+    el.resShieldBreaker.innerText = `${poles}, ${breaker} А`;
+    el.resShieldRelay.innerText = relay;
+    el.resShieldRcd.innerText = rcd;
+    el.resShieldTotalModules.innerText = `${totalModules} мод.`;
+    el.resShieldBoardSize.innerText = `${boardSize} мод.`;
+    const hasEquipmentCard = renderShieldEquipmentList({ poles, breaker, relay, rcd, boardSize });
+    el.shieldResult.style.display = 'block';
+    if (scrollToResult) {
+        if (hasEquipmentCard && el.shieldEquipmentCard) {
+            el.shieldEquipmentCard.style.display = 'block';
+            el.shieldEquipmentCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            el.shieldResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
 // Рендер списка потребителей по помещениям
 function renderObjectConsumers() {
     const roomHtml = OBJECT_CONSUMERS.map((room) => {
@@ -582,6 +998,7 @@ function buildObjectLineDetail(entry) {
 
     return {
         id: entry.id,
+        room: entry.room || 'Без группы',
         name: entry.displayName || entry.name,
         powerKw: `${(power / 1000).toFixed(2)} кВт`,
         cableLength: Number.isFinite(cableLength) && cableLength > 0 ? cableLength : '',
@@ -678,7 +1095,6 @@ function renderMaterialsSummary(rows) {
         const wagoQty = linesCount * CONSUMABLES.wagoPerLine;
         const markingQty = linesCount * CONSUMABLES.markingPerLine;
         const fastenerQty = Math.ceil(totalCableMeters / CONSUMABLES.fastenerStepMeters);
-
         pushGroupTitle('Расходники');
         lines.push(`Клипсы/хомуты - ${clipsQty} шт (шаг ${CONSUMABLES.clipStepMeters} м)`);
         lines.push(`Клеммы WAGO - ${wagoQty} шт (${CONSUMABLES.wagoPerLine} шт/линия)`);
@@ -700,6 +1116,8 @@ function invalidateObjectCalculation() {
     el.objectResult.style.display = 'none';
     el.objectDetailCard.style.display = 'none';
     el.materialsCard.style.display = 'none';
+    lastDetailRows = [];
+    renderShieldLineCandidates();
 }
 
 function toggleObjectConsumerSelection(card) {
@@ -762,6 +1180,7 @@ function calculateObjectPower() {
     lastDetailRows = detailRows;
     renderObjectDetailRows(detailRows);
     renderMaterialsSummary(detailRows);
+    renderShieldLineCandidates();
     el.objectResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -901,12 +1320,95 @@ el.objectDetailRows.addEventListener('focusout', (e) => {
         lastDetailRows = detailRows;
         renderObjectDetailRows(detailRows);
         renderMaterialsSummary(detailRows);
+        renderShieldLineCandidates();
     }
 });
 el.includeConsumablesCheck.addEventListener('change', () => {
     if (!lastDetailRows.length || el.materialsCard.style.display !== 'block') return;
     renderMaterialsSummary(lastDetailRows);
 });
+el.shieldInputBasis.addEventListener('change', updateShieldInputUI);
+el.calcShieldBtn.addEventListener('click', calculateShield);
+if (el.shieldAddManualModuleBtn) {
+    el.shieldAddManualModuleBtn.addEventListener('click', () => {
+        const name = (el.shieldManualModuleName.value || '').trim();
+        const modules = parseInt(el.shieldManualModuleCount.value, 10);
+        if (!name) {
+            alert('Введите название модуля.');
+            return;
+        }
+        if (!Number.isFinite(modules) || modules <= 0) {
+            alert('Введите корректное количество модулей.');
+            return;
+        }
+        addShieldExtra(name, modules);
+        el.shieldManualModuleName.value = '';
+        el.shieldManualModuleCount.value = '';
+    });
+}
+if (el.recalcShieldBtn) {
+    el.recalcShieldBtn.addEventListener('click', calculateShield);
+}
+el.shieldExtraModulesList.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('[data-remove-shield-extra-id]');
+    if (!removeBtn) return;
+    const id = parseInt(removeBtn.dataset.removeShieldExtraId, 10);
+    if (!Number.isFinite(id)) return;
+    const index = selectedShieldExtras.findIndex((item) => item.id === id);
+    if (index === -1) return;
+    selectedShieldExtras.splice(index, 1);
+    renderShieldExtras();
+    renderShieldMainLines();
+    if (el.shieldResult.style.display === 'block') {
+        calculateShield({ scrollToResult: false });
+    }
+});
+el.shieldMainRooms.addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('[data-shield-main-room-toggle]');
+    if (toggleBtn) {
+        toggleShieldMainRoom(toggleBtn.dataset.shieldMainRoomToggle);
+        return;
+    }
+
+    const row = e.target.closest('[data-shield-main-key]');
+    if (!row) return;
+    const key = row.dataset.shieldMainKey;
+    const name = row.dataset.shieldMainName;
+    const modules = parseInt(row.dataset.shieldMainModules, 10);
+    const protectionType = row.dataset.shieldMainProtectionType || 'breaker';
+    const protectionAmp = parseInt(row.dataset.shieldMainProtectionAmp, 10);
+    const protectionCurve = row.dataset.shieldMainProtectionCurve || DEFAULT_PROTECTION_CURVE;
+    if (!Number.isFinite(modules) || modules <= 0) return;
+    addShieldExtra(name, modules, key, {
+        type: protectionType,
+        amp: Number.isFinite(protectionAmp) ? protectionAmp : null,
+        curve: protectionCurve,
+    });
+});
+if (el.shieldLineCandidates) {
+    el.shieldLineCandidates.addEventListener('click', (e) => {
+        const toggleBtn = e.target.closest('[data-shield-room-toggle]');
+        if (toggleBtn) {
+            toggleShieldRoom(toggleBtn.dataset.shieldRoomToggle);
+            return;
+        }
+
+        const addBtn = e.target.closest('[data-add-line-module-id]');
+        if (!addBtn) return;
+        const id = parseInt(addBtn.dataset.addLineModuleId, 10);
+        const name = addBtn.dataset.addLineModuleName;
+        const modules = parseInt(addBtn.dataset.addLineModuleCount, 10);
+        const protectionType = addBtn.dataset.addLineProtectionType || 'breaker';
+        const protectionAmp = parseInt(addBtn.dataset.addLineProtectionAmp, 10);
+        const protectionCurve = addBtn.dataset.addLineProtectionCurve || DEFAULT_PROTECTION_CURVE;
+        if (!Number.isFinite(id) || !name || !Number.isFinite(modules) || modules <= 0) return;
+        addShieldExtra(name, modules, `object::${id}`, {
+            type: protectionType,
+            amp: Number.isFinite(protectionAmp) ? protectionAmp : null,
+            curve: protectionCurve,
+        });
+    });
+}
 el.calcBtn.addEventListener('click', calculate);
 el.calcObjectBtn.addEventListener('click', calculateObjectPower);
 
@@ -915,4 +1417,8 @@ renderObjectConsumers();
 renderSelectedConsumers();
 updateVoltageUI(el.netType.value);
 updateCosPhiUI(el.netType.value);
+updateShieldInputUI();
+renderShieldExtras();
+renderShieldMainLines();
+renderShieldLineCandidates();
 

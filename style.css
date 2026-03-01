@@ -351,3 +351,51 @@ hr {
     font-weight: 700;
     color: #555;
 }
+
+.module-add-grid {
+    display: grid;
+    grid-template-columns: 1fr 120px;
+    gap: 8px;
+}
+
+.shield-line-btn {
+    margin-top: 8px;
+}
+
+.equipment-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    table-layout: fixed;
+}
+
+.equipment-table th,
+.equipment-table td {
+    padding: 10px 8px;
+    border-top: 1px dashed #eee;
+}
+
+.equipment-table thead th {
+    border-top: none;
+    border-bottom: 1px solid #eee;
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.equipment-table th:first-child,
+.equipment-table td:first-child {
+    text-align: left;
+    width: 72%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.equipment-table th:last-child,
+.equipment-table td:last-child {
+    text-align: right;
+    width: 28%;
+    min-width: 92px;
+    white-space: nowrap;
+}

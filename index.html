@@ -19,6 +19,7 @@
             <div class="card menu-card">
                 <button type="button" class="menu-btn" data-screen="wireScreen">Расчет сечения провода и номинал автомата</button>
                 <button type="button" class="menu-btn" data-screen="objectScreen">Расчет мощности объекта</button>
+                <button type="button" class="menu-btn" data-screen="shieldScreen">Подбор модулей для вводного распределительного щита</button>
             </div>
         </section>
 
@@ -179,6 +180,96 @@
                 <h2 style="margin-top: 0;">Материалы</h2>
                 <ul id="materialsList" class="materials-list"></ul>
             </div>
+        </section>
+
+        <section id="shieldScreen" class="screen">
+            <button type="button" class="back-btn" data-screen="homeScreen">Назад</button>
+
+            <div class="card">
+                <h2 style="margin-top: 0;">Подбор модулей вводного щита</h2>
+                <p class="hint">Выберите, что известно: сечение вводного кабеля или расчетная мощность.</p>
+
+                <div class="input-group">
+                    <label>Что известно?</label>
+                    <select id="shieldInputBasis">
+                        <option value="section">Сечение вводного кабеля</option>
+                        <option value="power">Расчетная мощность</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="shieldSectionGroup">
+                    <label>Сечение вводного кабеля (мм²)</label>
+                    <input type="number" id="shieldCableSection" min="1" step="0.5" placeholder="Например: 10">
+                </div>
+
+                <div class="input-group" id="shieldPowerGroup" style="display: none;">
+                    <label>Расчетная мощность (кВт)</label>
+                    <input type="number" id="shieldPowerKw" min="0.1" step="0.1" placeholder="Например: 12.5">
+                </div>
+
+                <div class="input-group">
+                    <label>Количество фаз</label>
+                    <select id="shieldPhases">
+                        <option value="1">1 фаза (230 В)</option>
+                        <option value="3">3 фазы (400 В)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Материал вводного кабеля</label>
+                    <select id="shieldMaterial">
+                        <option value="Cu">Медь (Cu)</option>
+                        <option value="Al">Алюминий (Al)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Прокладка вводного кабеля</label>
+                    <select id="shieldRouting">
+                        <option value="air">Открыто (в воздухе)</option>
+                        <option value="pipe">В трубе/штробе</option>
+                    </select>
+                </div>
+
+                <button id="calcShieldBtn" type="button">Рассчитать вводной комплект</button>
+            </div>
+
+            <div class="card result-card" id="shieldResult" style="display: none;">
+                <h2>Рекомендуемые устройства:</h2>
+                <p>Вводной автомат: <strong id="resShieldBreaker" class="highlight">-</strong></p>
+                <p>Реле напряжения: <strong id="resShieldRelay">-</strong></p>
+                <p>УЗО вводное: <strong id="resShieldRcd">-</strong></p>
+                <hr>
+                <h2>Модули:</h2>
+                <p>Итого модулей: <strong id="resShieldTotalModules" class="highlight">-</strong></p>
+                <p>Рекомендуемый размер щита: <strong id="resShieldBoardSize" class="highlight">-</strong></p>
+            </div>
+
+            <div class="card">
+                <h3 class="room-title">Основные линии</h3>
+                <p class="hint">Нажмите на линию, чтобы добавить ее защиту в модули щита.</p>
+                <div id="shieldMainRooms"></div>
+            </div>
+            
+            <div class="card">
+                <h3 class="room-title">Добавляемые модули</h3>
+                <div id="shieldExtraModulesList" style="margin-top: 8px;"></div>
+                <button id="recalcShieldBtn" type="button">Рассчитать</button>
+            </div>
+
+            <div class="card" id="shieldEquipmentCard" style="display: none;">
+                <h2 style="margin-top: 0;">Список закупки</h2>
+                <table class="equipment-table">
+                    <thead>
+                        <tr>
+                            <th>Наименование</th>
+                            <th>Количество</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shieldEquipmentRows"></tbody>
+                </table>
+            </div>
+
         </section>
     </div>
 
