@@ -153,6 +153,7 @@ const el = {
     manualCosPhiCheck: document.getElementById('manualCosPhiCheck'),
     cosPhiGroup: document.getElementById('cosPhiGroup'),
     cosPhiInput: document.getElementById('cosPhiInput'),
+    inputValueLabel: document.getElementById('inputValueLabel'),
     inputValue: document.getElementById('inputValue'),
     calcDropCheck: document.getElementById('calcDropCheck'),
     lengthGroup: document.getElementById('lengthGroup'),
@@ -409,6 +410,18 @@ function updateCosPhiUI(netType) {
 
     el.cosPhiToggleGroup.style.display = 'block';
     el.cosPhiGroup.style.display = el.manualCosPhiCheck.checked ? 'block' : 'none';
+}
+
+function updateInputPlaceholder(inputType) {
+    const isCurrent = inputType === 'current';
+    if (el.inputValueLabel) {
+        el.inputValueLabel.textContent = isCurrent
+            ? 'Ток потребителя (А)'
+            : 'Мощность потребителя (кВт)';
+    }
+    el.inputValue.placeholder = isCurrent
+        ? 'Например: 10'
+        : 'Например: 5,5';
 }
 
 // Основной расчет: сечение провода и номинал автомата
@@ -1266,6 +1279,9 @@ el.netType.addEventListener('change', (e) => {
     updateVoltageUI(e.target.value);
     updateCosPhiUI(e.target.value);
 });
+el.inputType.addEventListener('change', (e) => {
+    updateInputPlaceholder(e.target.value);
+});
 el.manualCosPhiCheck.addEventListener('change', (e) => {
     el.cosPhiGroup.style.display = e.target.checked ? 'block' : 'none';
 });
@@ -1417,6 +1433,7 @@ renderObjectConsumers();
 renderSelectedConsumers();
 updateVoltageUI(el.netType.value);
 updateCosPhiUI(el.netType.value);
+updateInputPlaceholder(el.inputType.value);
 updateShieldInputUI();
 renderShieldExtras();
 renderShieldMainLines();

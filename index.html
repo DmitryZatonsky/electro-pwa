@@ -90,14 +90,14 @@
                 <div class="input-group">
                     <label>Что известно? (Мощность / Ток)</label>
                     <select id="inputType">
-                        <option value="power">Мощность (Вт)</option>
+                        <option value="power">Мощность (кВт)</option>
                         <option value="current">Ток (А)</option>
                     </select>
                 </div>
 
                 <div class="input-group">
-                    <label>Значение</label>
-                    <input type="number" id="inputValue" placeholder="Например: 5500">
+                    <label id="inputValueLabel">Значение</label>
+                    <input type="number" id="inputValue" placeholder="Например: 5,5">
                 </div>
 
                 <div class="input-group" style="margin-top: 20px;">
@@ -190,7 +190,7 @@
                 <p class="hint">Выберите, что известно: сечение вводного кабеля или расчетная мощность.</p>
 
                 <div class="input-group">
-                    <label>Что известно?</label>
+                    <label>Что известно? (Сечение / Мощность)</label>
                     <select id="shieldInputBasis">
                         <option value="section">Сечение вводного кабеля</option>
                         <option value="power">Расчетная мощность</option>
