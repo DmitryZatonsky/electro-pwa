@@ -133,6 +133,7 @@ const OBJECT_DETAIL_ROUTING = 'pipe';
 const SHIELD_MODULE_STEP = 12;
 const MAX_RELAY_DIRECT_AMP = 63;
 const DEFAULT_PROTECTION_CURVE = 'C';
+const HYBRID_INVERTER_STEPS_KW = [1, 1.5, 2, 3, 3.6, 5, 6, 8, 10, 12, 15, 20];
 const CONSUMABLES = {
     clipStepMeters: 0.5,
     wagoPerLine: 3,
@@ -208,6 +209,27 @@ const el = {
     shieldExtraModulesList: document.getElementById('shieldExtraModulesList'),
     shieldMainRooms: document.getElementById('shieldMainRooms'),
     shieldLineCandidates: document.getElementById('shieldLineCandidates'),
+    hybridConsumptionBasis: document.getElementById('hybridConsumptionBasis'),
+    hybridEnergyLabel: document.getElementById('hybridEnergyLabel'),
+    hybridEnergyValue: document.getElementById('hybridEnergyValue'),
+    hybridAutonomyHours: document.getElementById('hybridAutonomyHours'),
+    hybridBatteryVoltage: document.getElementById('hybridBatteryVoltage'),
+    hybridBatteryType: document.getElementById('hybridBatteryType'),
+    hybridInverterReserve: document.getElementById('hybridInverterReserve'),
+    hybridPeakLoadKw: document.getElementById('hybridPeakLoadKw'),
+    calcHybridBtn: document.getElementById('calcHybridBtn'),
+    hybridResult: document.getElementById('hybridResult'),
+    resHybridDailyKwh: document.getElementById('resHybridDailyKwh'),
+    resHybridAvgPower: document.getElementById('resHybridAvgPower'),
+    resHybridInverterPower: document.getElementById('resHybridInverterPower'),
+    resHybridSurgePower: document.getElementById('resHybridSurgePower'),
+    resHybridAutonomyEnergy: document.getElementById('resHybridAutonomyEnergy'),
+    resHybridInverterSelfUse: document.getElementById('resHybridInverterSelfUse'),
+    resHybridTotalAutonomyEnergy: document.getElementById('resHybridTotalAutonomyEnergy'),
+    resHybridBatteryEnergy: document.getElementById('resHybridBatteryEnergy'),
+    resHybridBatteryAh: document.getElementById('resHybridBatteryAh'),
+    resHybridMinSoc: document.getElementById('resHybridMinSoc'),
+    resHybridAssumptions: document.getElementById('resHybridAssumptions'),
 };
 
 const selectedObjectConsumers = [];
@@ -474,6 +496,112 @@ function calculate() {
         maxAllowedPower,
         marginPercent,
     });
+}
+
+function updateHybridEnergyLabel() {
+    if (!el.hybridConsumptionBasis || !el.hybridEnergyLabel || !el.hybridEnergyValue) return;
+    const isMonthly = el.hybridConsumptionBasis.value === 'monthly';
+    el.hybridEnergyLabel.textContent = isMonthly
+        ? 'Месячное потребление (кВт·ч)'
+        : 'Суточное потребление (кВт·ч)';
+    el.hybridEnergyValue.placeholder = isMonthly ? 'Например: 450' : 'Например: 18';
+}
+
+function getHybridBatteryProfile(type) {
+    if (type === 'agm') {
+        return { dod: 0.5, efficiency: 0.8, label: 'AGM/GEL: DoD 50%, КПД 80%' };
+    }
+    return { dod: 0.9, efficiency: 0.94, label: 'LiFePO4: DoD 90%, КПД 94%' };
+}
+
+function pickHybridInverterPower(requiredKw) {
+    return HYBRID_INVERTER_STEPS_KW.find((powerKw) => powerKw >= requiredKw)
+        || HYBRID_INVERTER_STEPS_KW[HYBRID_INVERTER_STEPS_KW.length - 1];
+}
+
+function estimateInverterSelfUseWatts(inverterKw) {
+    // Типичный диапазон собственного потребления инвертора при работе.
+    const estimated = inverterKw * 18;
+    return Math.min(120, Math.max(20, estimated));
+}
+
+function revealHybridResultCard() {
+    if (!el.hybridResult) return;
+
+    el.hybridResult.style.display = 'block';
+    el.hybridResult.classList.remove('result-card-animate');
+    // Перезапуск CSS-анимации при повторном расчете.
+    void el.hybridResult.offsetWidth;
+    el.hybridResult.classList.add('result-card-animate');
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        el.hybridResult.scrollIntoView({ block: 'start' });
+        return;
+    }
+
+    requestAnimationFrame(() => {
+        el.hybridResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+
+function calculateHybridSystem() {
+    const basis = el.hybridConsumptionBasis.value;
+    const inputEnergyKwh = parseFloat(el.hybridEnergyValue.value);
+    const autonomyHours = parseFloat(el.hybridAutonomyHours.value);
+    const batteryVoltage = parseFloat(el.hybridBatteryVoltage.value);
+    const batteryType = el.hybridBatteryType.value;
+    const reservePercent = parseFloat(el.hybridInverterReserve.value);
+    const peakLoadKw = parseFloat(el.hybridPeakLoadKw.value);
+
+    if (!Number.isFinite(inputEnergyKwh) || inputEnergyKwh <= 0) {
+        alert('Введите корректное потребление электроэнергии.');
+        return;
+    }
+    if (!Number.isFinite(autonomyHours) || autonomyHours <= 0) {
+        alert('Введите корректное время автономии.');
+        return;
+    }
+    if (!Number.isFinite(batteryVoltage) || batteryVoltage <= 0) {
+        alert('Введите корректное напряжение АКБ.');
+        return;
+    }
+    if (!Number.isFinite(reservePercent) || reservePercent < 0 || reservePercent > 200) {
+        alert('Запас мощности инвертора должен быть от 0 до 200%.');
+        return;
+    }
+
+    const dailyKwh = basis === 'monthly' ? inputEnergyKwh / 30 : inputEnergyKwh;
+    const avgPowerKw = dailyKwh / 24;
+    const autonomyEnergyKwh = dailyKwh * (autonomyHours / 24);
+
+    const reserveFactor = 1 + (reservePercent / 100);
+    const powerFromAverageKw = avgPowerKw * reserveFactor;
+    const targetInverterKw = Number.isFinite(peakLoadKw) && peakLoadKw > 0
+        ? Math.max(peakLoadKw, powerFromAverageKw)
+        : powerFromAverageKw;
+    const inverterKw = pickHybridInverterPower(targetInverterKw);
+    const surgeKw = inverterKw * 2;
+    const inverterSelfUseW = estimateInverterSelfUseWatts(inverterKw);
+    const inverterSelfUseKwh = (inverterSelfUseW * autonomyHours) / 1000;
+    const totalAutonomyEnergyKwh = autonomyEnergyKwh + inverterSelfUseKwh;
+
+    const batteryProfile = getHybridBatteryProfile(batteryType);
+    const minSocPercent = (1 - batteryProfile.dod) * 100;
+    const nominalBatteryEnergyKwh = totalAutonomyEnergyKwh / (batteryProfile.dod * batteryProfile.efficiency);
+    const batteryAh = (nominalBatteryEnergyKwh * 1000) / batteryVoltage;
+
+    el.resHybridDailyKwh.innerText = `${dailyKwh.toFixed(2)} кВт·ч/сут`;
+    el.resHybridAvgPower.innerText = `${avgPowerKw.toFixed(2)} кВт`;
+    el.resHybridInverterPower.innerText = `${inverterKw.toFixed(1)} кВт`;
+    el.resHybridSurgePower.innerText = `не менее ${surgeKw.toFixed(1)} кВт (кратковременно)`;
+    el.resHybridAutonomyEnergy.innerText = `${autonomyEnergyKwh.toFixed(2)} кВт·ч`;
+    el.resHybridInverterSelfUse.innerText = `${inverterSelfUseW.toFixed(0)} Вт (${inverterSelfUseKwh.toFixed(2)} кВт·ч за ${autonomyHours.toFixed(1)} ч)`;
+    el.resHybridTotalAutonomyEnergy.innerText = `${totalAutonomyEnergyKwh.toFixed(2)} кВт·ч`;
+    el.resHybridBatteryEnergy.innerText = `${nominalBatteryEnergyKwh.toFixed(2)} кВт·ч`;
+    el.resHybridBatteryAh.innerText = `${Math.ceil(batteryAh)} А·ч @ ${batteryVoltage} В`;
+    el.resHybridMinSoc.innerText = `не ниже ${minSocPercent.toFixed(0)}%`;
+    el.resHybridAssumptions.innerText = batteryProfile.label;
+    revealHybridResultCard();
 }
 
 function updateShieldInputUI() {
@@ -1345,6 +1473,12 @@ el.includeConsumablesCheck.addEventListener('change', () => {
 });
 el.shieldInputBasis.addEventListener('change', updateShieldInputUI);
 el.calcShieldBtn.addEventListener('click', calculateShield);
+if (el.hybridConsumptionBasis) {
+    el.hybridConsumptionBasis.addEventListener('change', updateHybridEnergyLabel);
+}
+if (el.calcHybridBtn) {
+    el.calcHybridBtn.addEventListener('click', calculateHybridSystem);
+}
 if (el.shieldAddManualModuleBtn) {
     el.shieldAddManualModuleBtn.addEventListener('click', () => {
         const name = (el.shieldManualModuleName.value || '').trim();
@@ -1435,6 +1569,7 @@ updateVoltageUI(el.netType.value);
 updateCosPhiUI(el.netType.value);
 updateInputPlaceholder(el.inputType.value);
 updateShieldInputUI();
+updateHybridEnergyLabel();
 renderShieldExtras();
 renderShieldMainLines();
 renderShieldLineCandidates();

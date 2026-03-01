@@ -20,6 +20,7 @@
                 <button type="button" class="menu-btn" data-screen="wireScreen">Расчет сечения провода и номинал автомата</button>
                 <button type="button" class="menu-btn" data-screen="objectScreen">Расчет мощности объекта</button>
                 <button type="button" class="menu-btn" data-screen="shieldScreen">Подбор модулей для вводного распределительного щита</button>
+                <button type="button" class="menu-btn" data-screen="hybridScreen">Подбор гибридного инвертора и АКБ</button>
             </div>
         </section>
 
@@ -270,6 +271,78 @@
                 </table>
             </div>
 
+        </section>
+
+        <section id="hybridScreen" class="screen">
+            <button type="button" class="back-btn" data-screen="homeScreen">Назад</button>
+
+            <div class="card">
+                <h2 style="margin-top: 0;">Подбор гибридного инвертора и АКБ</h2>
+                <p class="hint">Расчет выполнен по потреблению и времени автономии. Для точного подбора учитывайте пусковые токи и реальные режимы нагрузки.</p>
+
+                <div class="input-group">
+                    <label>Что известно?</label>
+                    <select id="hybridConsumptionBasis">
+                        <option value="daily">Суточное потребление (кВт·ч/сутки)</option>
+                        <option value="monthly">Месячное потребление (кВт·ч/месяц)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label id="hybridEnergyLabel">Суточное потребление (кВт·ч)</label>
+                    <input type="number" id="hybridEnergyValue" min="0.1" step="0.1" placeholder="Например: 18">
+                </div>
+
+                <div class="input-group">
+                    <label>Желаемое время автономии (ч)</label>
+                    <input type="number" id="hybridAutonomyHours" min="0.5" step="0.5" placeholder="Например: 8">
+                </div>
+
+                <div class="input-group">
+                    <label>Номинальное напряжение АКБ (В)</label>
+                    <select id="hybridBatteryVoltage">
+                        <option value="24">24 В</option>
+                        <option value="48" selected>48 В</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Тип АКБ</label>
+                    <select id="hybridBatteryType">
+                        <option value="lifepo4">LiFePO4</option>
+                        <option value="agm">AGM/GEL (свинцово-кислотные)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Запас по мощности инвертора (%)</label>
+                    <input type="number" id="hybridInverterReserve" min="0" max="200" step="5" value="30">
+                </div>
+
+                <div class="input-group">
+                    <label>Пиковая нагрузка, если известна (кВт)</label>
+                    <input type="number" id="hybridPeakLoadKw" min="0" step="0.1" placeholder="Необязательно">
+                </div>
+
+                <button id="calcHybridBtn" type="button">Рассчитать подбор</button>
+            </div>
+
+            <div class="card result-card" id="hybridResult" style="display: none;">
+                <h2>Рекомендации:</h2>
+                <p>Приведенное суточное потребление: <strong id="resHybridDailyKwh" class="highlight">-</strong></p>
+                <p>Средняя нагрузка: <strong id="resHybridAvgPower" class="highlight">-</strong></p>
+                <p>Рекомендуемая мощность инвертора: <strong id="resHybridInverterPower" class="highlight">-</strong></p>
+                <p>Рекомендованный запас по пуску: <strong id="resHybridSurgePower">-</strong></p>
+                <hr>
+                <h2>АКБ:</h2>
+                <p>Энергия на период автономии: <strong id="resHybridAutonomyEnergy">-</strong></p>
+                <p>Собственное потребление инвертора: <strong id="resHybridInverterSelfUse">-</strong></p>
+                <p>Всего энергии от АКБ на автономию: <strong id="resHybridTotalAutonomyEnergy">-</strong></p>
+                <p>Номинальная емкость АКБ: <strong id="resHybridBatteryEnergy" class="highlight">-</strong></p>
+                <p>Требуемая емкость при выбранном напряжении: <strong id="resHybridBatteryAh" class="highlight">-</strong></p>
+                <p>Минимальный остаток заряда АКБ: <strong id="resHybridMinSoc">-</strong></p>
+                <p>Принятые допущения (DoD/КПД): <strong id="resHybridAssumptions">-</strong></p>
+            </div>
         </section>
     </div>
 
