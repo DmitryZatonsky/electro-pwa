@@ -1,4 +1,5 @@
-const CACHE_NAME = 'electro-pwa-v2';
+const SW_VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
+const CACHE_NAME = `electro-pwa-${SW_VERSION}`;
 const ASSETS = [
     './',
     './index.html',
@@ -18,7 +19,7 @@ self.addEventListener('install', (event) => {
 
 // Активация: удаляем старые версии кэша
 self.addEventListener('activate', (event) => {
-    event.waitUntil(git pushgit push
+    event.waitUntil(
         caches.keys().then((keys) => Promise.all(
             keys
                 .filter((key) => key !== CACHE_NAME)

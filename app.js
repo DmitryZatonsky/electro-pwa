@@ -1,16 +1,29 @@
-﻿// Регистрация Service Worker для PWA + авто-версия сборки
-async function getSwVersionToken() {
+﻿// Регистрация Service Worker для PWA + авто-версия
+function formatVersionFromDate(dateValue) {
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return null;
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `v${yyyy}.${mm}.${dd}-${hh}${min}`;
+}
+
+async function getAutoVersionToken() {
     try {
         const response = await fetch('./sw.js', { method: 'HEAD', cache: 'no-store' });
-        const etag = response.headers.get('etag');
-        if (etag) return etag.replace(/[^a-zA-Z0-9._-]/g, '');
-
         const lastModified = response.headers.get('last-modified');
-        if (lastModified) return new Date(lastModified).getTime().toString(36);
+        const fromDate = lastModified ? formatVersionFromDate(lastModified) : null;
+        if (fromDate) return fromDate;
+
+        const etag = response.headers.get('etag');
+        if (etag) return `v${etag.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 16)}`;
     } catch (err) {
-        console.warn('Не удалось получить версию sw.js', err);
+        console.warn('Не удалось получить авто-версию', err);
     }
-    return '';
+    return 'v-dev';
 }
 
 function setAppVersionLabel(versionToken) {
@@ -19,20 +32,18 @@ function setAppVersionLabel(versionToken) {
     versionEl.textContent = `Версия: ${versionToken || 'dev'}`;
 }
 
-async function registerServiceWorkerWithAutoVersion() {
+async function registerServiceWorkerWithVersion() {
     if (!('serviceWorker' in navigator)) return;
-
-    const versionToken = await getSwVersionToken();
+    const versionToken = await getAutoVersionToken();
     setAppVersionLabel(versionToken);
-
-    const swUrl = versionToken ? `./sw.js?v=${encodeURIComponent(versionToken)}` : './sw.js';
+    const swUrl = `./sw.js?v=${encodeURIComponent(versionToken)}`;
     navigator.serviceWorker
         .register(swUrl)
         .then((reg) => reg.update())
         .catch(err => console.error(err));
 }
 
-registerServiceWorkerWithAutoVersion();
+registerServiceWorkerWithVersion();
 // Данные ПУЭ: Медь
 const CABLE_DATA_CU = [
     { section: 1.5, air: 23, pipe: 15 },
