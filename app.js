@@ -1,4 +1,5 @@
 ﻿// Регистрация Service Worker для PWA + авто-версия
+// Функция formatVersionFromDate: Формирует строку версии из даты в формате vYYYY.MM.DD-HHMM.
 function formatVersionFromDate(dateValue) {
     const d = new Date(dateValue);
     if (Number.isNaN(d.getTime())) return null;
@@ -11,6 +12,7 @@ function formatVersionFromDate(dateValue) {
     return `v${yyyy}.${mm}.${dd}-${hh}${min}`;
 }
 
+// Функция getAutoVersionToken: Пытается получить авто-версию приложения по заголовкам Service Worker.
 async function getAutoVersionToken() {
     try {
         const response = await fetch('./sw.js', { method: 'HEAD', cache: 'no-store' });
@@ -26,12 +28,14 @@ async function getAutoVersionToken() {
     return 'v-dev';
 }
 
+// Функция setAppVersionLabel: Обновляет текст версии приложения в интерфейсе.
 function setAppVersionLabel(versionToken) {
     const versionEl = document.getElementById('appVersion');
     if (!versionEl) return;
     versionEl.textContent = `Версия: ${versionToken || 'dev'}`;
 }
 
+// Функция registerServiceWorkerWithVersion: Регистрирует Service Worker и добавляет к URL токен версии.
 async function registerServiceWorkerWithVersion() {
     if (!('serviceWorker' in navigator)) return;
     const versionToken = await getAutoVersionToken();
@@ -244,6 +248,7 @@ const expandedShieldRooms = new Set();
 const expandedShieldMainRooms = new Set();
 
 // Навигация между экранами
+// Функция showScreen: Переключает активный экран приложения и обновляет историю переходов.
 function showScreen(screenId, options = {}) {
     const { record = true, fromPopState = false } = options;
     if (!screenId || screenId === currentScreenId) return;
@@ -259,26 +264,47 @@ function showScreen(screenId, options = {}) {
     }
 }
 
+// Функция goScreenBack: Переходит на предыдущий экран через браузерную историю.
 function goScreenBack() {
     window.history.back();
 }
 
+// Функция goScreenForward: Переходит на следующий экран через браузерную историю.
 function goScreenForward() {
     window.history.forward();
 }
 
+// Функция getCableDataSet: Возвращает таблицу допустимых токов кабеля по материалу.
+function getCableDataSet(material) {
+    return material === 'Cu' ? CABLE_DATA_CU : CABLE_DATA_AL;
+}
+
+// Функция scrollIntoViewSmart: Прокручивает элемент в область видимости с учетом reduced-motion.
+function scrollIntoViewSmart(target, block = 'start') {
+    if (!target) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        target.scrollIntoView({ block });
+        return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block });
+}
+
 // Расчетные функции для кабеля и автомата
+// Функция getVoltage: Возвращает рабочее напряжение по выбранному типу сети.
 function getVoltage(netType) {
     if (netType === 'AC3') return 400;
     if (netType === 'DC') return parseFloat(el.voltageSelect.value);
     return 230;
 }
 
+// Функция calcLoad: Считает мощность и ток нагрузки по исходным данным пользователя.
 function calcLoad({ inputType, inputValue, netType, voltage, cosPhi }) {
     if (inputType === 'power') {
-        if (netType === 'DC') return { calcPower: inputValue, calcCurrent: inputValue / voltage };
-        if (netType === 'AC1') return { calcPower: inputValue, calcCurrent: inputValue / (voltage * cosPhi) };
-        return { calcPower: inputValue, calcCurrent: inputValue / (SQRT_3 * voltage * cosPhi) };
+        // В UI мощность вводится в кВт, для расчетов переводим в Вт.
+        const powerWatts = inputValue * 1000;
+        if (netType === 'DC') return { calcPower: powerWatts, calcCurrent: powerWatts / voltage };
+        if (netType === 'AC1') return { calcPower: powerWatts, calcCurrent: powerWatts / (voltage * cosPhi) };
+        return { calcPower: powerWatts, calcCurrent: powerWatts / (SQRT_3 * voltage * cosPhi) };
     }
 
     if (netType === 'DC') return { calcPower: voltage * inputValue, calcCurrent: inputValue };
@@ -286,14 +312,16 @@ function calcLoad({ inputType, inputValue, netType, voltage, cosPhi }) {
     return { calcPower: SQRT_3 * voltage * inputValue * cosPhi, calcCurrent: inputValue };
 }
 
+// Функция pickBreaker: Подбирает ближайший стандартный номинал автомата по расчетному току.
 function pickBreaker(calcCurrent) {
     return BREAKERS.find((b) => b >= calcCurrent) || null;
 }
 
+// Функция pickCable: Подбирает минимальное сечение кабеля под выбранный автомат.
 function pickCable({ material, routing, breaker }) {
     if (!breaker) return { selectedCableSection: null, selectedCableMaxCurrent: 0 };
 
-    const dataSet = material === 'Cu' ? CABLE_DATA_CU : CABLE_DATA_AL;
+    const dataSet = getCableDataSet(material);
     const cable = dataSet.find((c) => breaker <= (routing === 'air' ? c.air : c.pipe) * 0.8);
     if (!cable) return { selectedCableSection: null, selectedCableMaxCurrent: 0 };
 
@@ -301,8 +329,9 @@ function pickCable({ material, routing, breaker }) {
     return { selectedCableSection: cable.section, selectedCableMaxCurrent };
 }
 
+// Функция pickCableByDropLimit: Подбирает сечение кабеля с учетом ограничения по падению напряжения.
 function pickCableByDropLimit({ material, routing, breaker, calcCurrent, cableLength, voltage, cosPhi, dropLimitPercent }) {
-    const dataSet = material === 'Cu' ? CABLE_DATA_CU : CABLE_DATA_AL;
+    const dataSet = getCableDataSet(material);
     const routingKey = routing === 'air' ? 'air' : 'pipe';
 
     if (!breaker) {
@@ -347,12 +376,14 @@ function pickCableByDropLimit({ material, routing, breaker, calcCurrent, cableLe
     return { selectedCableSection: chosen.section, drop };
 }
 
+// Функция calcMaxAllowedPower: Считает максимально допустимую мощность для выбранного тока.
 function calcMaxAllowedPower(netType, voltage, maxCurrent, cosPhi) {
     if (netType === 'DC') return voltage * maxCurrent;
     if (netType === 'AC1') return voltage * maxCurrent * cosPhi;
     return SQRT_3 * voltage * maxCurrent * cosPhi;
 }
 
+// Функция calcVoltageDrop: Рассчитывает падение напряжения на линии.
 function calcVoltageDrop({ netType, material, calcCurrent, cableLength, selectedCableSection, voltage, cosPhi }) {
     const rho = RESISTIVITY[material];
     let deltaU = 0;
@@ -368,6 +399,7 @@ function calcVoltageDrop({ netType, material, calcCurrent, cableLength, selected
     return { deltaU, dropPercent: (deltaU / voltage) * 100 };
 }
 
+// Функция getDropPercentColor: Возвращает цветовой индикатор по величине падения напряжения.
 function getDropPercentColor(dropPercent) {
     if (dropPercent <= 3) return '#28a745';
     if (dropPercent <= 5) return '#d39e00';
@@ -375,6 +407,7 @@ function getDropPercentColor(dropPercent) {
 }
 
 // Рендер результатов расчета кабеля
+// Функция renderVoltageDrop: Отрисовывает блок результатов падения напряжения.
 function renderVoltageDrop(drop) {
     if (!drop) {
         el.dropResultBlock.style.display = 'none';
@@ -389,6 +422,7 @@ function renderVoltageDrop(drop) {
     el.dropResultBlock.style.display = 'block';
 }
 
+// Функция renderMainResult: Отрисовывает карточку итогов по кабелю и автомату.
 function renderMainResult({ calcCurrent, calcPower, breaker, selectedCableSection, selectedCableMaxCurrent, material, maxAllowedPower, marginPercent }) {
     el.resCurrent.innerText = `${calcCurrent.toFixed(2)} А`;
     el.resPower.innerText = `${Math.round(calcPower)} Вт`;
@@ -411,6 +445,7 @@ function renderMainResult({ calcCurrent, calcPower, breaker, selectedCableSectio
 }
 
 // Обновление UI формы расчета кабеля
+// Функция updateVoltageUI: Переключает элементы ввода напряжения в зависимости от типа сети.
 function updateVoltageUI(netType) {
     if (netType === 'DC') {
         el.voltageFixed.style.display = 'none';
@@ -423,6 +458,7 @@ function updateVoltageUI(netType) {
     el.voltageFixed.value = netType === 'AC3' ? '400 В' : '230 В';
 }
 
+// Функция updateCosPhiUI: Показывает или скрывает блок ручного ввода cos φ.
 function updateCosPhiUI(netType) {
     if (netType === 'DC') {
         el.cosPhiToggleGroup.style.display = 'none';
@@ -434,6 +470,7 @@ function updateCosPhiUI(netType) {
     el.cosPhiGroup.style.display = el.manualCosPhiCheck.checked ? 'block' : 'none';
 }
 
+// Функция updateInputPlaceholder: Обновляет подпись и placeholder поля исходного значения.
 function updateInputPlaceholder(inputType) {
     const isCurrent = inputType === 'current';
     if (el.inputValueLabel) {
@@ -447,6 +484,7 @@ function updateInputPlaceholder(inputType) {
 }
 
 // Основной расчет: сечение провода и номинал автомата
+// Функция calculate: Выполняет основной расчет сечения кабеля и номинала автомата.
 function calculate() {
     const netType = el.netType.value;
     const material = el.material.value;
@@ -496,8 +534,10 @@ function calculate() {
         maxAllowedPower,
         marginPercent,
     });
+    scrollIntoViewSmart(el.resultBlock, 'start');
 }
 
+// Функция updateHybridEnergyLabel: Меняет подпись поля потребления для суточного/месячного режима.
 function updateHybridEnergyLabel() {
     if (!el.hybridConsumptionBasis || !el.hybridEnergyLabel || !el.hybridEnergyValue) return;
     const isMonthly = el.hybridConsumptionBasis.value === 'monthly';
@@ -507,6 +547,7 @@ function updateHybridEnergyLabel() {
     el.hybridEnergyValue.placeholder = isMonthly ? 'Например: 450' : 'Например: 18';
 }
 
+// Функция getHybridBatteryProfile: Возвращает профиль АКБ: DoD и КПД по выбранному типу.
 function getHybridBatteryProfile(type) {
     if (type === 'agm') {
         return { dod: 0.5, efficiency: 0.8, label: 'AGM/GEL: DoD 50%, КПД 80%' };
@@ -514,17 +555,20 @@ function getHybridBatteryProfile(type) {
     return { dod: 0.9, efficiency: 0.94, label: 'LiFePO4: DoD 90%, КПД 94%' };
 }
 
+// Функция pickHybridInverterPower: Округляет требуемую мощность до ближайшей стандартной модели инвертора.
 function pickHybridInverterPower(requiredKw) {
     return HYBRID_INVERTER_STEPS_KW.find((powerKw) => powerKw >= requiredKw)
         || HYBRID_INVERTER_STEPS_KW[HYBRID_INVERTER_STEPS_KW.length - 1];
 }
 
+// Функция estimateInverterSelfUseWatts: Оценивает собственное потребление инвертора в ваттах.
 function estimateInverterSelfUseWatts(inverterKw) {
     // Типичный диапазон собственного потребления инвертора при работе.
     const estimated = inverterKw * 18;
     return Math.min(120, Math.max(20, estimated));
 }
 
+// Функция revealHybridResultCard: Показывает карточку результата подбора гибридной системы и прокручивает к ней.
 function revealHybridResultCard() {
     if (!el.hybridResult) return;
 
@@ -534,16 +578,12 @@ function revealHybridResultCard() {
     void el.hybridResult.offsetWidth;
     el.hybridResult.classList.add('result-card-animate');
 
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        el.hybridResult.scrollIntoView({ block: 'start' });
-        return;
-    }
-
     requestAnimationFrame(() => {
-        el.hybridResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollIntoViewSmart(el.hybridResult, 'start');
     });
 }
 
+// Функция calculateHybridSystem: Считает подбор гибридного инвертора и аккумуляторов.
 function calculateHybridSystem() {
     const basis = el.hybridConsumptionBasis.value;
     const inputEnergyKwh = parseFloat(el.hybridEnergyValue.value);
@@ -604,14 +644,16 @@ function calculateHybridSystem() {
     revealHybridResultCard();
 }
 
+// Функция updateShieldInputUI: Переключает режим ввода данных для расчета щита.
 function updateShieldInputUI() {
     const bySection = el.shieldInputBasis.value === 'section';
     el.shieldSectionGroup.style.display = bySection ? 'block' : 'none';
     el.shieldPowerGroup.style.display = bySection ? 'none' : 'block';
 }
 
+// Функция pickInputBreakerBySection: Подбирает вводной автомат по сечению, материалу и типу прокладки кабеля.
 function pickInputBreakerBySection({ material, routing, section }) {
-    const dataSet = material === 'Cu' ? CABLE_DATA_CU : CABLE_DATA_AL;
+    const dataSet = getCableDataSet(material);
     const cable = dataSet.find((entry) => entry.section >= section);
     if (!cable) return null;
     const maxCurrent = routing === 'air' ? cable.air : cable.pipe;
@@ -620,12 +662,14 @@ function pickInputBreakerBySection({ material, routing, section }) {
     return variants.length ? variants[variants.length - 1] : null;
 }
 
+// Функция calcInputCurrentFromPower: Считает вводной ток по расчетной мощности и количеству фаз.
 function calcInputCurrentFromPower(powerKw, phases) {
     const powerW = powerKw * 1000;
     if (phases === 3) return powerW / (SQRT_3 * 400 * DEFAULT_COS_PHI);
     return powerW / (230 * DEFAULT_COS_PHI);
 }
 
+// Функция getRelayRecommendation: Формирует рекомендацию по реле напряжения.
 function getRelayRecommendation(breaker, phases) {
     const poles = phases === 3 ? '4P' : '2P';
     if (breaker > MAX_RELAY_DIRECT_AMP) {
@@ -634,22 +678,26 @@ function getRelayRecommendation(breaker, phases) {
     return `${poles}, не менее ${breaker} А`;
 }
 
+// Функция getRcdRecommendation: Формирует рекомендацию по вводному УЗО.
 function getRcdRecommendation(breaker, phases) {
     const poles = phases === 3 ? '4P' : '2P';
     const rcdNominal = BREAKERS.find((value) => value >= breaker) || breaker;
     return `${poles}, ${rcdNominal} А, 100 мА, тип S`;
 }
 
+// Функция getBaseShieldModules: Возвращает базовое количество модулей щита для выбранной фазности.
 function getBaseShieldModules(phases) {
     if (phases === 3) return 12;
     return 6;
 }
 
+// Функция getLineModuleCount: Определяет число модулей на одну линию в щите.
 function getLineModuleCount(row) {
     if (!row) return 0;
     return row.protectionType === 'diff' ? 2 : 1;
 }
 
+// Функция getShieldMainConsumerGroups: Готовит группы основных линий для раздела щита.
 function getShieldMainConsumerGroups() {
     return OBJECT_CONSUMERS
         .map((room) => ({
@@ -663,6 +711,7 @@ function getShieldMainConsumerGroups() {
         .filter((room) => room.items.length);
 }
 
+// Функция pickShieldMainProtection: Подбирает защиту линии щита по мощности потребителя.
 function pickShieldMainProtection(item) {
     const power = parseFloat(item.power);
     const calcCurrent = Number.isFinite(power) && power > 0
@@ -680,6 +729,7 @@ function pickShieldMainProtection(item) {
     };
 }
 
+// Функция renderShieldMainLines: Отрисовывает список основных линий для добавления в щит.
 function renderShieldMainLines() {
     const groups = getShieldMainConsumerGroups();
     if (!groups.length) {
@@ -739,6 +789,7 @@ function renderShieldMainLines() {
     el.shieldMainRooms.innerHTML = html;
 }
 
+// Функция toggleShieldMainRoom: Сворачивает или разворачивает группу основных линий щита.
 function toggleShieldMainRoom(roomName) {
     if (!roomName) return;
     if (expandedShieldMainRooms.has(roomName)) {
@@ -749,6 +800,7 @@ function toggleShieldMainRoom(roomName) {
     renderShieldMainLines();
 }
 
+// Функция renderShieldExtras: Отрисовывает список вручную добавленных модулей щита.
 function renderShieldExtras() {
     if (!selectedShieldExtras.length) {
         el.shieldExtraModulesList.innerHTML = '<p class="hint">Дополнительные модули не добавлены.</p>';
@@ -789,6 +841,7 @@ function renderShieldExtras() {
     el.shieldExtraModulesList.innerHTML = html;
 }
 
+// Функция renderShieldLineCandidates: Отрисовывает кандидатов линий из расчета объекта для добавления в щит.
 function renderShieldLineCandidates() {
     if (!el.shieldLineCandidates) return;
 
@@ -849,6 +902,7 @@ function renderShieldLineCandidates() {
     el.shieldLineCandidates.innerHTML = html;
 }
 
+// Функция toggleShieldRoom: Сворачивает или разворачивает группу кандидатов линий щита.
 function toggleShieldRoom(roomName) {
     if (!roomName) return;
     if (expandedShieldRooms.has(roomName)) {
@@ -859,6 +913,7 @@ function toggleShieldRoom(roomName) {
     renderShieldLineCandidates();
 }
 
+// Функция addShieldExtra: Добавляет модуль или линию в дополнительные элементы щита.
 function addShieldExtra(baseName, modules, sourceKey = '', protection = null) {
     if (!baseName || !Number.isFinite(modules) || modules <= 0) return;
     selectedShieldExtras.push({
@@ -878,6 +933,7 @@ function addShieldExtra(baseName, modules, sourceKey = '', protection = null) {
     }
 }
 
+// Функция renderShieldEquipmentList: Формирует таблицу закупки оборудования для щита.
 function renderShieldEquipmentList({ poles, breaker, relay, rcd, boardSize }) {
     if (!el.shieldEquipmentRows || !el.shieldEquipmentCard) return false;
 
@@ -931,6 +987,7 @@ function renderShieldEquipmentList({ poles, breaker, relay, rcd, boardSize }) {
     return true;
 }
 
+// Функция calculateShield: Выполняет расчет вводного щита и выводит рекомендации.
 function calculateShield(options = {}) {
     const { scrollToResult = true } = options;
     const basis = el.shieldInputBasis.value;
@@ -982,14 +1039,15 @@ function calculateShield(options = {}) {
     if (scrollToResult) {
         if (hasEquipmentCard && el.shieldEquipmentCard) {
             el.shieldEquipmentCard.style.display = 'block';
-            el.shieldEquipmentCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            scrollIntoViewSmart(el.shieldEquipmentCard, 'start');
         } else {
-            el.shieldResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            scrollIntoViewSmart(el.shieldResult, 'start');
         }
     }
 }
 
 // Рендер списка потребителей по помещениям
+// Функция renderObjectConsumers: Отрисовывает список потребителей по помещениям.
 function renderObjectConsumers() {
     const roomHtml = OBJECT_CONSUMERS.map((room) => {
         const isExpanded = expandedRooms.has(room.room);
@@ -1043,6 +1101,7 @@ function renderObjectConsumers() {
     el.consumerRooms.innerHTML = roomHtml;
 }
 
+// Функция toggleRoom: Сворачивает или разворачивает группу потребителей помещения.
 function toggleRoom(roomName) {
     if (!roomName) return;
     if (expandedRooms.has(roomName)) {
@@ -1053,6 +1112,7 @@ function toggleRoom(roomName) {
     renderObjectConsumers();
 }
 
+// Функция getNumberedSelectedEntries: Возвращает выбранные потребители с нумерацией повторов.
 function getNumberedSelectedEntries() {
     const totalByKey = new Map();
     selectedObjectConsumers.forEach((entry) => {
@@ -1072,6 +1132,7 @@ function getNumberedSelectedEntries() {
     });
 }
 
+// Функция renderSelectedConsumers: Отрисовывает список выбранных потребителей для расчета объекта.
 function renderSelectedConsumers() {
     const selectedItems = getNumberedSelectedEntries();
     if (selectedItems.length === 0) {
@@ -1106,6 +1167,7 @@ function renderSelectedConsumers() {
     el.selectedConsumersBlock.style.display = 'block';
 }
 
+// Функция buildObjectLineDetail: Собирает расчетные параметры одной линии объекта.
 function buildObjectLineDetail(entry) {
     const power = parseFloat(entry.power);
     const cableLength = parseFloat(entry.cableLength);
@@ -1154,6 +1216,7 @@ function buildObjectLineDetail(entry) {
     };
 }
 
+// Функция renderObjectDetailRows: Отрисовывает таблицу расчета линий объекта.
 function renderObjectDetailRows(rows) {
     if (!rows.length) {
         el.objectDetailRows.innerHTML = '';
@@ -1186,6 +1249,7 @@ function renderObjectDetailRows(rows) {
     el.objectDetailCard.style.display = 'block';
 }
 
+// Функция renderMaterialsSummary: Формирует свод материалов и расходников по линиям.
 function renderMaterialsSummary(rows) {
     if (!rows.length) {
         el.materialsList.innerHTML = '';
@@ -1253,6 +1317,7 @@ function renderMaterialsSummary(rows) {
     el.materialsCard.style.display = 'block';
 }
 
+// Функция invalidateObjectCalculation: Сбрасывает результаты расчета объекта при изменении входных данных.
 function invalidateObjectCalculation() {
     el.objectResult.style.display = 'none';
     el.objectDetailCard.style.display = 'none';
@@ -1261,6 +1326,7 @@ function invalidateObjectCalculation() {
     renderShieldLineCandidates();
 }
 
+// Функция toggleObjectConsumerSelection: Добавляет выбранного потребителя в список расчета объекта.
 function toggleObjectConsumerSelection(card) {
     const key = card.dataset.consumerKey;
     if (!key) return;
@@ -1284,6 +1350,7 @@ function toggleObjectConsumerSelection(card) {
 }
 
 // Расчет мощности объекта
+// Функция calculateObjectPower: Выполняет расчет суммарной мощности и тока объекта.
 function calculateObjectPower() {
     const selectedRows = el.selectedConsumers.querySelectorAll('.selected-row');
     let peakPower = 0;
@@ -1322,7 +1389,7 @@ function calculateObjectPower() {
     renderObjectDetailRows(detailRows);
     renderMaterialsSummary(detailRows);
     renderShieldLineCandidates();
-    el.objectResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrollIntoViewSmart(el.objectResult, 'start');
 }
 
 // Обработчики навигации
@@ -1346,6 +1413,7 @@ let swipeStartY = 0;
 let swipeStartTime = 0;
 let swipeEdge = null;
 
+// Функция resetSwipeState: Сбрасывает внутреннее состояние свайп-навигации.
 function resetSwipeState() {
     swipeStartX = 0;
     swipeStartY = 0;
@@ -1353,6 +1421,7 @@ function resetSwipeState() {
     swipeEdge = null;
 }
 
+// Функция isInteractiveTarget: Проверяет, является ли элемент интерактивным для блокировки свайпа.
 function isInteractiveTarget(target) {
     return Boolean(target.closest('input, textarea, select, button, [contenteditable="true"]'));
 }
