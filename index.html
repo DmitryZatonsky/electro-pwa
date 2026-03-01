@@ -21,6 +21,7 @@
                 <button type="button" class="menu-btn" data-screen="objectScreen">Расчет мощности объекта</button>
                 <button type="button" class="menu-btn" data-screen="shieldScreen">Подбор модулей для вводного распределительного щита</button>
                 <button type="button" class="menu-btn" data-screen="hybridScreen">Подбор гибридного инвертора и АКБ</button>
+                <button type="button" class="menu-btn" data-screen="resistanceSectionScreen">Проверка кабеля на допустимое сопротивление</button>
             </div>
         </section>
 
@@ -342,6 +343,44 @@
                 <p>Требуемая емкость при выбранном напряжении: <strong id="resHybridBatteryAh" class="highlight">-</strong></p>
                 <p>Минимальный остаток заряда АКБ: <strong id="resHybridMinSoc">-</strong></p>
                 <p>Принятые допущения (DoD/КПД): <strong id="resHybridAssumptions">-</strong></p>
+            </div>
+        </section>
+
+        <section id="resistanceSectionScreen" class="screen">
+            <button type="button" class="back-btn" data-screen="homeScreen">Назад</button>
+
+            <div class="card">
+                <h2 style="margin-top: 0;">Проверка кабеля по сопротивлению</h2>
+                <p class="hint">ДСТУ ЕН 60228:2015</p>
+                <p class="hint">Расчет по формуле S = ρ * L / R, где ρ при 20 °C: медь 0.0175, алюминий 0.0281 (Ом·мм²/м).</p>
+
+                <div class="input-group">
+                    <label>Материал кабеля</label>
+                    <select id="resistanceMaterial">
+                        <option value="Cu">Медный кабель (Cu)</option>
+                        <option value="Al">Алюминиевый кабель (Al)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Длина кабеля (м)</label>
+                    <input type="number" id="resistanceLength" value="1" min="0.01" step="0.01">
+                </div>
+
+                <div class="input-group">
+                    <label>Измеренное сопротивление (Ом)</label>
+                    <input type="number" id="measuredResistance" value="0.007" min="0.000001" step="0.000001">
+                </div>
+
+                <button id="calcResistanceSectionBtn" type="button">Рассчитать</button>
+            </div>
+
+            <div class="card result-card" id="resistanceSectionResult" style="display: none;">
+                <h2>Результат проверки:</h2>
+                <p>Фактическое сечение кабеля: <strong id="resCalculatedSection" class="highlight">-</strong></p>
+                <p>Табличное сечение для сравнения: <strong id="resTabularSection">-</strong></p>
+                <p>Допустимое сопротивление (для длины): <strong id="resAllowedResistance">-</strong></p>
+                <p>Отклонение сопротивления от идеального: <strong id="resResistanceDeviation">-</strong></p>
             </div>
         </section>
     </div>

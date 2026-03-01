@@ -138,6 +138,36 @@ const SHIELD_MODULE_STEP = 12;
 const MAX_RELAY_DIRECT_AMP = 63;
 const DEFAULT_PROTECTION_CURVE = 'C';
 const HYBRID_INVERTER_STEPS_KW = [1, 1.5, 2, 3, 3.6, 5, 6, 8, 10, 12, 15, 20];
+const RESISTANCE_CHECK_DEFAULT = { Cu: 0.007, Al: 0.0112 };
+const RESISTANCE_LIMIT_PER_M = {
+    Cu: [
+        { section: 1.5, resistancePerMeter: 0.0121 },
+        { section: 2.5, resistancePerMeter: 0.00741 },
+        { section: 4, resistancePerMeter: 0.00461 },
+        { section: 6, resistancePerMeter: 0.00308 },
+        { section: 10, resistancePerMeter: 0.00183 },
+        { section: 16, resistancePerMeter: 0.00115 },
+        { section: 25, resistancePerMeter: 0.000727 },
+        { section: 35, resistancePerMeter: 0.000524 },
+        { section: 50, resistancePerMeter: 0.000387 },
+        { section: 70, resistancePerMeter: 0.000268 },
+        { section: 95, resistancePerMeter: 0.000193 },
+        { section: 120, resistancePerMeter: 0.000153 },
+    ],
+    Al: [
+        { section: 2.5, resistancePerMeter: 0.0115 },
+        { section: 4, resistancePerMeter: 0.00714 },
+        { section: 6, resistancePerMeter: 0.00477 },
+        { section: 10, resistancePerMeter: 0.00299 },
+        { section: 16, resistancePerMeter: 0.00187 },
+        { section: 25, resistancePerMeter: 0.001184 },
+        { section: 35, resistancePerMeter: 0.000853 },
+        { section: 50, resistancePerMeter: 0.000630 },
+        { section: 70, resistancePerMeter: 0.000437 },
+        { section: 95, resistancePerMeter: 0.000310 },
+        { section: 120, resistancePerMeter: 0.000245 },
+    ],
+};
 const CONSUMABLES = {
     clipStepMeters: 0.5,
     wagoPerLine: 3,
@@ -234,6 +264,15 @@ const el = {
     resHybridBatteryAh: document.getElementById('resHybridBatteryAh'),
     resHybridMinSoc: document.getElementById('resHybridMinSoc'),
     resHybridAssumptions: document.getElementById('resHybridAssumptions'),
+    resistanceMaterial: document.getElementById('resistanceMaterial'),
+    resistanceLength: document.getElementById('resistanceLength'),
+    measuredResistance: document.getElementById('measuredResistance'),
+    calcResistanceSectionBtn: document.getElementById('calcResistanceSectionBtn'),
+    resistanceSectionResult: document.getElementById('resistanceSectionResult'),
+    resCalculatedSection: document.getElementById('resCalculatedSection'),
+    resTabularSection: document.getElementById('resTabularSection'),
+    resAllowedResistance: document.getElementById('resAllowedResistance'),
+    resResistanceDeviation: document.getElementById('resResistanceDeviation'),
 };
 
 const selectedObjectConsumers = [];
@@ -642,6 +681,76 @@ function calculateHybridSystem() {
     el.resHybridMinSoc.innerText = `не ниже ${minSocPercent.toFixed(0)}%`;
     el.resHybridAssumptions.innerText = batteryProfile.label;
     revealHybridResultCard();
+}
+
+// Функция updateMeasuredResistanceDefault: Подставляет типовое значение сопротивления на 1 м по материалу.
+function updateMeasuredResistanceDefault() {
+    if (!el.resistanceMaterial || !el.measuredResistance) return;
+    const value = RESISTANCE_CHECK_DEFAULT[el.resistanceMaterial.value];
+    if (!Number.isFinite(value)) return;
+    el.measuredResistance.value = value.toFixed(4);
+}
+
+// Функция pickNearestResistanceLimit: Подбирает ближайшее табличное сечение по рассчитанному значению.
+function pickNearestResistanceLimit(material, section) {
+    const variants = RESISTANCE_LIMIT_PER_M[material] || [];
+    if (!variants.length || !Number.isFinite(section)) return null;
+    return variants.reduce((best, item) => {
+        if (!best) return item;
+        const currentDiff = Math.abs(item.section - section);
+        const bestDiff = Math.abs(best.section - section);
+        return currentDiff < bestDiff ? item : best;
+    }, null);
+}
+
+// Функция calculateSectionByResistance: Считает фактическое сечение по измеренному сопротивлению.
+function calculateSectionByResistance() {
+    if (!el.resistanceMaterial || !el.resistanceLength || !el.measuredResistance) return;
+
+    const material = el.resistanceMaterial.value;
+    const length = parseFloat(el.resistanceLength.value);
+    const resistance = parseFloat(el.measuredResistance.value);
+    const rho = RESISTIVITY[material];
+
+    if (!Number.isFinite(length) || length <= 0) {
+        alert('Введите корректную длину кабеля.');
+        return;
+    }
+    if (!Number.isFinite(resistance) || resistance <= 0) {
+        alert('Введите корректное измеренное сопротивление.');
+        return;
+    }
+    if (!Number.isFinite(rho) || rho <= 0) {
+        alert('Не удалось определить материал кабеля.');
+        return;
+    }
+
+    const section = (rho * length) / resistance;
+    if (!Number.isFinite(section) || section <= 0) {
+        alert('Не удалось рассчитать сечение. Проверьте введенные данные.');
+        return;
+    }
+
+    el.resCalculatedSection.innerText = `${section.toFixed(3)} мм²`;
+
+    const tableEntry = pickNearestResistanceLimit(material, section);
+    if (tableEntry && el.resTabularSection && el.resAllowedResistance && el.resResistanceDeviation) {
+        const idealResistance = (rho * length) / tableEntry.section;
+        const allowedResistance = tableEntry.resistancePerMeter * length;
+        const deviationPercent = ((resistance - idealResistance) / idealResistance) * 100;
+        const isWithinLimit = resistance <= allowedResistance;
+
+        el.resTabularSection.innerText = `${tableEntry.section} мм²`;
+        el.resAllowedResistance.innerText = `${allowedResistance.toFixed(6)} Ом`;
+        el.resResistanceDeviation.innerText = `${deviationPercent >= 0 ? '+' : ''}${deviationPercent.toFixed(1)}%`;
+        el.resResistanceDeviation.style.color = isWithinLimit ? '#28a745' : '#dc3545';
+    }
+
+    el.resistanceSectionResult.style.display = 'block';
+    el.resistanceSectionResult.classList.remove('result-card-animate');
+    void el.resistanceSectionResult.offsetWidth;
+    el.resistanceSectionResult.classList.add('result-card-animate');
+    scrollIntoViewSmart(el.resistanceSectionResult, 'start');
 }
 
 // Функция updateShieldInputUI: Переключает режим ввода данных для расчета щита.
@@ -1548,6 +1657,12 @@ if (el.hybridConsumptionBasis) {
 if (el.calcHybridBtn) {
     el.calcHybridBtn.addEventListener('click', calculateHybridSystem);
 }
+if (el.resistanceMaterial) {
+    el.resistanceMaterial.addEventListener('change', updateMeasuredResistanceDefault);
+}
+if (el.calcResistanceSectionBtn) {
+    el.calcResistanceSectionBtn.addEventListener('click', calculateSectionByResistance);
+}
 if (el.shieldAddManualModuleBtn) {
     el.shieldAddManualModuleBtn.addEventListener('click', () => {
         const name = (el.shieldManualModuleName.value || '').trim();
@@ -1642,4 +1757,5 @@ updateHybridEnergyLabel();
 renderShieldExtras();
 renderShieldMainLines();
 renderShieldLineCandidates();
+updateMeasuredResistanceDefault();
 
