@@ -130,6 +130,12 @@ const OBJECT_DIVERSITY_FACTOR = 0.6;
 const OBJECT_DETAIL_VOLTAGE = 230;
 const OBJECT_DETAIL_MATERIAL = 'Cu';
 const OBJECT_DETAIL_ROUTING = 'pipe';
+const CONSUMABLES = {
+    clipStepMeters: 0.5,
+    wagoPerLine: 3,
+    markingPerLine: 2,
+    fastenerStepMeters: 0.5,
+};
 
 // Ссылки на DOM-элементы
 const el = {
@@ -163,6 +169,7 @@ const el = {
     consumerRooms: document.getElementById('consumerRooms'),
     selectedConsumersBlock: document.getElementById('selectedConsumersBlock'),
     selectedConsumers: document.getElementById('selectedConsumers'),
+    includeConsumablesCheck: document.getElementById('includeConsumablesCheck'),
     calcObjectBtn: document.getElementById('calcObjectBtn'),
     objectResult: document.getElementById('objectResult'),
     objectDetailCard: document.getElementById('objectDetailCard'),
@@ -180,6 +187,7 @@ let selectedEntryIdCounter = 0;
 const expandedRooms = new Set();
 let currentScreenId = (document.querySelector('.screen.active') || {}).id || 'homeScreen';
 const knownScreenIds = new Set(Array.from(el.screens).map((screen) => screen.id));
+let lastDetailRows = [];
 
 // Навигация между экранами
 function showScreen(screenId, options = {}) {
@@ -641,7 +649,11 @@ function renderMaterialsSummary(rows) {
     });
 
     const lines = [];
+    const pushGroupTitle = (title) => {
+        lines.push(`<li class="materials-group-title">${title}</li>`);
+    };
 
+    pushGroupTitle('Защита');
     Array.from(protectionMap.keys()).sort((a, b) => {
         const [typeA, ampA] = a.split(':');
         const [typeB, ampB] = b.split(':');
@@ -653,16 +665,34 @@ function renderMaterialsSummary(rows) {
         lines.push(`${label} ${amp} А - ${protectionMap.get(key)} шт`);
     });
 
+    pushGroupTitle('Кабель');
     Array.from(cableMap.keys()).sort((a, b) => a - b).forEach((section) => {
         const totalWithReserve = cableMap.get(section) * 1.15;
         lines.push(`Кабель ВВГнг-LS 3x${section} мм² - ${totalWithReserve.toFixed(1)} м (+15%)`);
     });
 
+    if (el.includeConsumablesCheck && el.includeConsumablesCheck.checked) {
+        const linesCount = rows.length;
+        const totalCableMeters = rows.reduce((sum, row) => sum + (row.cableLengthMeters || 0), 0);
+        const clipsQty = Math.ceil(totalCableMeters / CONSUMABLES.clipStepMeters);
+        const wagoQty = linesCount * CONSUMABLES.wagoPerLine;
+        const markingQty = linesCount * CONSUMABLES.markingPerLine;
+        const fastenerQty = Math.ceil(totalCableMeters / CONSUMABLES.fastenerStepMeters);
+
+        pushGroupTitle('Расходники');
+        lines.push(`Клипсы/хомуты - ${clipsQty} шт (шаг ${CONSUMABLES.clipStepMeters} м)`);
+        lines.push(`Клеммы WAGO - ${wagoQty} шт (${CONSUMABLES.wagoPerLine} шт/линия)`);
+        lines.push(`Маркировка/бирки - ${markingQty} шт (${CONSUMABLES.markingPerLine} шт/линия)`);
+        lines.push(`Саморез+дюбель - ${fastenerQty} компл (шаг ${CONSUMABLES.fastenerStepMeters} м)`);
+    }
+
     if (!lines.length) {
         lines.push('Недостаточно данных для подсчета материалов');
     }
 
-    el.materialsList.innerHTML = lines.map((line) => `<li>${line}</li>`).join('');
+    el.materialsList.innerHTML = lines.map((line) => (
+        line.startsWith('<li ') ? line : `<li>${line}</li>`
+    )).join('');
     el.materialsCard.style.display = 'block';
 }
 
@@ -729,6 +759,7 @@ function calculateObjectPower() {
     el.resObjectBreaker.innerText = breaker ? `${breaker} А` : 'Вне диапазона';
     el.objectResult.style.display = 'block';
     const detailRows = getNumberedSelectedEntries().map(buildObjectLineDetail);
+    lastDetailRows = detailRows;
     renderObjectDetailRows(detailRows);
     renderMaterialsSummary(detailRows);
     el.objectResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -867,9 +898,14 @@ el.objectDetailRows.addEventListener('focusout', (e) => {
 
     if (el.objectDetailCard.style.display === 'block') {
         const detailRows = getNumberedSelectedEntries().map(buildObjectLineDetail);
+        lastDetailRows = detailRows;
         renderObjectDetailRows(detailRows);
         renderMaterialsSummary(detailRows);
     }
+});
+el.includeConsumablesCheck.addEventListener('change', () => {
+    if (!lastDetailRows.length || el.materialsCard.style.display !== 'block') return;
+    renderMaterialsSummary(lastDetailRows);
 });
 el.calcBtn.addEventListener('click', calculate);
 el.calcObjectBtn.addEventListener('click', calculateObjectPower);
