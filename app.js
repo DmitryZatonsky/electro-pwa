@@ -273,6 +273,8 @@ const el = {
     resTabularSection: document.getElementById('resTabularSection'),
     resAllowedResistance: document.getElementById('resAllowedResistance'),
     resResistanceDeviation: document.getElementById('resResistanceDeviation'),
+    resAllowedDeviationRow: document.getElementById('resAllowedDeviationRow'),
+    resAllowedDeviation: document.getElementById('resAllowedDeviation'),
 };
 
 const selectedObjectConsumers = [];
@@ -734,16 +736,22 @@ function calculateSectionByResistance() {
     el.resCalculatedSection.innerText = `${section.toFixed(3)} мм²`;
 
     const tableEntry = pickNearestResistanceLimit(material, section);
-    if (tableEntry && el.resTabularSection && el.resAllowedResistance && el.resResistanceDeviation) {
+    if (tableEntry && el.resTabularSection && el.resAllowedResistance && el.resResistanceDeviation && el.resAllowedDeviation && el.resAllowedDeviationRow) {
         const idealResistance = (rho * length) / tableEntry.section;
         const allowedResistance = tableEntry.resistancePerMeter * length;
         const deviationPercent = ((resistance - idealResistance) / idealResistance) * 100;
+        const allowedDeviationPercent = ((resistance - allowedResistance) / allowedResistance) * 100;
         const isWithinLimit = resistance <= allowedResistance;
 
         el.resTabularSection.innerText = `${tableEntry.section} мм²`;
         el.resAllowedResistance.innerText = `${allowedResistance.toFixed(6)} Ом`;
         el.resResistanceDeviation.innerText = `${deviationPercent >= 0 ? '+' : ''}${deviationPercent.toFixed(1)}%`;
         el.resResistanceDeviation.style.color = isWithinLimit ? '#28a745' : '#dc3545';
+        el.resAllowedDeviation.innerText = `${allowedDeviationPercent >= 0 ? '+' : ''}${allowedDeviationPercent.toFixed(1)}%`;
+        el.resAllowedDeviation.style.color = isWithinLimit ? '' : '#dc3545';
+        el.resAllowedDeviationRow.style.display = isWithinLimit ? 'none' : 'flex';
+    } else if (el.resAllowedDeviationRow) {
+        el.resAllowedDeviationRow.style.display = 'none';
     }
 
     el.resistanceSectionResult.style.display = 'block';
