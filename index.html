@@ -355,6 +355,11 @@
                 <p class="hint">Расчет по формуле S = ρ * L / R, где ρ при 20 °C: медь 0.0175, алюминий 0.0281 (Ом·мм²/м).</p>
 
                 <div class="input-group">
+                    <label>Сечение для сравнения (мм²)</label>
+                    <input type="number" id="resistanceCompareSection" value="2.5" min="0.1" step="0.1">
+                </div>
+
+                <div class="input-group">
                     <label>Материал кабеля</label>
                     <select id="resistanceMaterial">
                         <option value="Cu">Медный кабель (Cu)</option>
@@ -378,7 +383,7 @@
             <div class="card result-card" id="resistanceSectionResult" style="display: none;">
                 <h2>Результат проверки:</h2>
                 <p>Фактическое сечение кабеля: <strong id="resCalculatedSection" class="highlight">-</strong></p>
-                <p>Табличное сечение для сравнения: <strong id="resTabularSection">-</strong></p>
+                <p>Сечение для сравнения: <strong id="resTabularSection">-</strong></p>
                 <p>Допустимое сопротивление (для длины): <strong id="resAllowedResistance">-</strong></p>
                 <p>Отклонение сопротивления от идеального: <strong id="resResistanceDeviation">-</strong></p>
                 <p id="resAllowedDeviationRow" style="display: none;">Отклонение сопротивления от допустимого: <strong id="resAllowedDeviation">-</strong></p>

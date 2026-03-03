@@ -264,6 +264,7 @@ const el = {
     resHybridBatteryAh: document.getElementById('resHybridBatteryAh'),
     resHybridMinSoc: document.getElementById('resHybridMinSoc'),
     resHybridAssumptions: document.getElementById('resHybridAssumptions'),
+    resistanceCompareSection: document.getElementById('resistanceCompareSection'),
     resistanceMaterial: document.getElementById('resistanceMaterial'),
     resistanceLength: document.getElementById('resistanceLength'),
     measuredResistance: document.getElementById('measuredResistance'),
@@ -693,27 +694,27 @@ function updateMeasuredResistanceDefault() {
     el.measuredResistance.value = value.toFixed(4);
 }
 
-// Функция pickNearestResistanceLimit: Подбирает ближайшее табличное сечение по рассчитанному значению.
-function pickNearestResistanceLimit(material, section) {
+// Функция getResistanceLimitBySection: Возвращает табличное сопротивление для выбранного сечения.
+function getResistanceLimitBySection(material, section) {
     const variants = RESISTANCE_LIMIT_PER_M[material] || [];
-    if (!variants.length || !Number.isFinite(section)) return null;
-    return variants.reduce((best, item) => {
-        if (!best) return item;
-        const currentDiff = Math.abs(item.section - section);
-        const bestDiff = Math.abs(best.section - section);
-        return currentDiff < bestDiff ? item : best;
-    }, null);
+    if (!variants.length || !Number.isFinite(section) || section <= 0) return null;
+    return variants.find((item) => Math.abs(item.section - section) < 1e-6) || null;
 }
 
 // Функция calculateSectionByResistance: Считает фактическое сечение по измеренному сопротивлению.
 function calculateSectionByResistance() {
-    if (!el.resistanceMaterial || !el.resistanceLength || !el.measuredResistance) return;
+    if (!el.resistanceCompareSection || !el.resistanceMaterial || !el.resistanceLength || !el.measuredResistance) return;
 
+    const compareSection = parseFloat(el.resistanceCompareSection.value);
     const material = el.resistanceMaterial.value;
     const length = parseFloat(el.resistanceLength.value);
     const resistance = parseFloat(el.measuredResistance.value);
     const rho = RESISTIVITY[material];
 
+    if (!Number.isFinite(compareSection) || compareSection <= 0) {
+        alert('Введите корректное сечение для сравнения.');
+        return;
+    }
     if (!Number.isFinite(length) || length <= 0) {
         alert('Введите корректную длину кабеля.');
         return;
@@ -735,7 +736,7 @@ function calculateSectionByResistance() {
 
     el.resCalculatedSection.innerText = `${section.toFixed(3)} мм²`;
 
-    const tableEntry = pickNearestResistanceLimit(material, section);
+    const tableEntry = getResistanceLimitBySection(material, compareSection);
     if (tableEntry && el.resTabularSection && el.resAllowedResistance && el.resResistanceDeviation && el.resAllowedDeviation && el.resAllowedDeviationRow) {
         const idealResistance = (rho * length) / tableEntry.section;
         const allowedResistance = tableEntry.resistancePerMeter * length;
@@ -751,7 +752,10 @@ function calculateSectionByResistance() {
         el.resAllowedDeviation.style.color = isWithinLimit ? '' : '#dc3545';
         el.resAllowedDeviationRow.style.display = isWithinLimit ? 'none' : 'flex';
     } else if (el.resAllowedDeviationRow) {
+        const options = (RESISTANCE_LIMIT_PER_M[material] || []).map((item) => item.section).join(', ');
+        alert(`Для ${material === 'Cu' ? 'меди' : 'алюминия'} нет табличного значения для сечения ${compareSection} мм². Доступно: ${options} мм².`);
         el.resAllowedDeviationRow.style.display = 'none';
+        return;
     }
 
     el.resistanceSectionResult.style.display = 'block';
